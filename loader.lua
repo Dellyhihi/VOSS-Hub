@@ -49,40 +49,54 @@ local function findRemoteEvent(name)
 end
 
 -- ================================================
--- IMMORTAL v14 — INSTANT RESPAWN AT DEATH POS
+-- IMMORTAL v14.1 — CHỐNG DEATH LOOP
 -- Cách hoạt động:
---   1) Lưu vị trí liên tục (chỉ khi đang đứng/đi bình thường)
+--   1) Lưu safePos = vị trí AN TOÀN (sống liên tục > 3 giây)
 --   2) Khi chết → game tự hồi sinh
---   3) Hồi sinh xong → teleport về vị trí lưu cuối cùng
---   4) Không hack HP, không chống server → 0 giật
+--   3) Hồi sinh xong → teleport về safePos (KHÔNG phải chỗ chết)
+--   4) Sau respawn, đợi 4 giây mới bắt đầu lưu safePos mới
+--      → tránh lưu chỗ nguy hiểm
 -- ================================================
-local savedPos       = nil
+local safePos        = nil   -- vị trí AN TOÀN (sống > 3s)
+local aliveTimer     = 0     -- đếm thời gian sống liên tục
+local respawnCooldown = false -- sau respawn, tạm dừng lưu pos
 local immortalActive = false
-local posConn        = nil  -- heartbeat lưu vị trí
-local charConn       = nil  -- CharacterAdded hook
+local posConn        = nil
+local charConn       = nil
 
 -- Forward declare
 local startFly, stopFly
 
 local function startImmortal()
     immortalActive = true
+    aliveTimer     = 0
+    respawnCooldown = false
 
-    -- Lưu vị trí hiện tại ngay
-    if HRP then savedPos = HRP.CFrame end
+    -- Lưu vị trí hiện tại làm safePos ban đầu
+    if HRP then safePos = HRP.CFrame end
 
-    -- Heartbeat: lưu vị trí liên tục
+    -- Heartbeat: lưu safePos CHỈ KHI sống > 3 giây liên tục
     if posConn then pcall(function() posConn:Disconnect() end) end
-    posConn = RunService.Heartbeat:Connect(function()
+    posConn = RunService.Heartbeat:Connect(function(dt)
         if not State.immortal then return end
-        if not HRP then return end
-        -- Chỉ lưu khi đang đứng/đi bình thường (không rơi, không bay nhanh)
+        if not HRP or not Hum then return end
+        if respawnCooldown then return end  -- đang cooldown sau respawn
+
+        -- Chỉ đếm khi đang đứng/đi bình thường
         local vel = HRP.AssemblyLinearVelocity
-        if math.abs(vel.Y) < 8 then
-            savedPos = HRP.CFrame
+        if math.abs(vel.Y) < 8 and Hum.Health > 0 then
+            aliveTimer = aliveTimer + dt
+            -- Sống > 3 giây = vị trí này an toàn
+            if aliveTimer > 3 then
+                safePos = HRP.CFrame
+            end
+        else
+            -- Đang rơi hoặc chết → reset timer
+            aliveTimer = 0
         end
     end)
 
-    -- CharacterAdded: hồi sinh xong → teleport về chỗ chết
+    -- CharacterAdded: hồi sinh xong → teleport về chỗ AN TOÀN
     if charConn then pcall(function() charConn:Disconnect() end) end
     charConn = LP.CharacterAdded:Connect(function(c)
         if not State.immortal then
@@ -90,42 +104,46 @@ local function startImmortal()
             return
         end
 
-        local retPos = savedPos  -- lấy vị trí trước khi chết
+        local retPos = safePos  -- lấy vị trí AN TOÀN, không phải chỗ chết
+        respawnCooldown = true  -- bật cooldown
+        aliveTimer = 0          -- reset timer
 
-        -- Đợi char load xong hoàn toàn
+        -- Đợi char load xong
         task.wait(0.3)
         refreshChar(c)
-
-        -- Đợi thêm chút cho game xử lý xong spawn
         task.wait(0.2)
 
-        -- Teleport về chỗ chết — 1 lần duy nhất, không loop giật
+        -- Teleport về chỗ an toàn
         if retPos and HRP then
-            -- Đợi HRP stable
             task.wait(0.1)
-            HRP.CFrame = retPos
+            HRP.CFrame = retPos + Vector3.new(0, 3, 0) -- +3Y để không rơi xuống lỗ
 
-            -- Backup: check lại sau 0.3s nếu bị game kéo về spawn
+            -- Backup: check lại nếu game kéo về spawn
             task.delay(0.3, function()
                 if State.immortal and HRP and retPos then
                     local dist = (HRP.Position - retPos.Position).Magnitude
                     if dist > 20 then
-                        -- Game đã kéo về spawn → teleport lại
-                        HRP.CFrame = retPos
+                        HRP.CFrame = retPos + Vector3.new(0, 3, 0)
                     end
                 end
             end)
 
-            -- Backup 2: check lần nữa
             task.delay(0.8, function()
                 if State.immortal and HRP and retPos then
                     local dist = (HRP.Position - retPos.Position).Magnitude
                     if dist > 20 then
-                        HRP.CFrame = retPos
+                        HRP.CFrame = retPos + Vector3.new(0, 3, 0)
                     end
                 end
             end)
         end
+
+        -- Sau 4 giây mới cho phép lưu safePos mới
+        -- → tránh lưu chỗ nguy hiểm ngay sau khi respawn
+        task.delay(4, function()
+            respawnCooldown = false
+            aliveTimer = 0
+        end)
 
         -- Restore speed
         if State.speed and Hum then
@@ -144,7 +162,9 @@ local function stopImmortal()
     immortalActive = false
     if posConn then pcall(function() posConn:Disconnect() end); posConn = nil end
     if charConn then pcall(function() charConn:Disconnect() end); charConn = nil end
-    savedPos = nil
+    safePos = nil
+    aliveTimer = 0
+    respawnCooldown = false
 end
 
 -- ================================================
@@ -329,7 +349,7 @@ local function teleportToNearest()
     local mob = nearestEnemy()
     if not mob or not HRP then return end
     local mh = mob:FindFirstChild("HumanoidRootPart")
-    if mh then HRP.CFrame = mh.CFrame + Vector3.new(4,0,0) end
+    if mh then HRP.CFrame = mh.CFrame + Vector3.new(4,5,0) end
 end
 
 local function startFarm()
@@ -345,7 +365,7 @@ local function startFarm()
         if not mob or not HRP then return end
         local mh = mob:FindFirstChild("HumanoidRootPart")
         if not mh then return end
-        HRP.CFrame = mh.CFrame + Vector3.new(3,0,0)
+        HRP.CFrame = mh.CFrame + Vector3.new(3,3,0)
         for _, r in pairs(remotes) do
             pcall(function()
                 if r:IsA("RemoteEvent") then r:FireServer(mob, mh.Position)
@@ -625,4 +645,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] v14 loaded — chết → hồi sinh ngay tại chỗ chết")
+print("[VOSS] v14.1 loaded — chết → hồi sinh tại chỗ AN TOÀN (chống death loop)")
