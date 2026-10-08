@@ -1,19 +1,22 @@
 -- ================================================
--- VOSS | Abyss Expedition v15 (Ultimate Edition)
+-- VOSS | Abyss Expedition v16 (Anti-Oan Edition)
 -- ================================================
--- [FIXES v15]:
--- 1. Hồi sinh tại chỗ chuẩn 100%:
---    - Lưu vị trí mặt đất an toàn (lastGroundPos) & vị trí chết (lastDeathPos)
---    - Rơi xuống vực sâu: tự hồi sinh trên mép đá/nền an toàn trước khi rơi, KHÔNG bị loop chết
---    - Teleport 1 lần dứt khoát + reset vận tốc (0 cà giật)
--- 2. Chống sát thương rơi (No Fall Damage) tích hợp:
---    - Giới hạn tốc độ rơi tối đa, triệt tiêu chấn động khi chạm đất
---    - Không bao giờ chết vì "couldn't survive the descent"
--- 3. Chạy nhanh (Speed Hack) không bao giờ mất:
---    - Hook GetPropertyChangedSignal("WalkSpeed") chặn game reset về 16
---    - Tự phục hồi ngay microsecond đầu tiên sau khi hồi sinh
--- 4. Bay (Fly) mượt mà cả Mobile (cần ảo) & PC (WASD/Space/Ctrl)
--- 5. 1 listener CharacterAdded duy nhất, không xung đột
+-- [NÂNG CẤP v16]:
+-- 1. CHỐNG RƠI XUYÊN MAP (StreamingEnabled):
+--    - Tự động gọi RequestStreamAroundAsync ép tải map trước khi đáp
+--    - Tạo bệ đỡ vô hình (SafePlatform) 16x16 studs dưới chân 3.5s
+--    - Neo nhân vật (Anchored = true) 0.35s đầu để map load xong 100%
+-- 2. TỰ TRÁNH BẪY & CHỖ CHẾT LẶP LẠI (Blacklist Lethal Spots):
+--    - Lưu lịch sử các vị trí an toàn (safeHistory)
+--    - Nếu chết < 4 giây sau khi tele đến điểm A → điểm A bị cấm
+--    - Tự động lùi về vị trí an toàn trước đó trong lịch sử, không chết lặp
+-- 3. RAYCAST XÁC NHẬN MẶT ĐẤT VỮNG CHẮC:
+--    - Chỉ lưu vị trí khi Raycast bắn xuống thấy sàn cứng CanCollide = true
+--    - Cooldown 4 giây sau hồi sinh không lưu pos mới (tránh lưu chỗ nguy hiểm)
+-- 4. BẢO VỆ TẠM THỜI SAU KHI TELEPORT:
+--    - Tạm khóa HumanoidStateType.Dead trong 1.5s đầu
+--    - Triệt tiêu hoàn toàn quán tính rơi
+-- 5. CHỐNG SÁT THƯƠNG RƠI (No Fall Damage) & SPEED KHÔNG MẤT
 -- ================================================
 
 local Players           = game:GetService("Players")
@@ -38,14 +41,14 @@ local CFG = {
     flyspeed  = 55 
 }
 
--- Quản lý Nhân Vật
+-- Quản lý Nhân Vật & Vị Trí An Toàn
 local Char, HRP, Hum
-local lastGroundPos      = nil  -- Vị trí đứng trên mặt đất gần nhất
-local lastAlivePos       = nil  -- Vị trí sống cuối cùng
-local lastExactDeathPos  = nil  -- Vị trí lúc chết
-local deathCountAtPos    = 0    -- Đếm số lần chết gần vị trí cũ
-local lastDeathCheckTime = 0
-local humConns           = {}
+local lastGroundPos       = nil   -- Vị trí sàn an toàn hiện tại
+local safeHistory         = {}    -- Danh sách lịch sử các vị trí an toàn đã kiểm chứng
+local blacklistedPoints   = {}    -- Các điểm bẫy / điểm rơi làm người chơi chết < 4s
+local lastTeleportTime    = 0     -- Thời điểm vừa tele xong
+local justTeleported      = false -- Đang trong giai đoạn bảo vệ sau tele
+local humConns            = {}
 
 local function clearHumConns()
     for _, c in pairs(humConns) do
@@ -66,6 +69,85 @@ local function findRemoteEvent(name)
     return nil
 end
 
+-- Bắn Raycast kiểm tra dưới chân có sàn cứng không
+local function isSolidGroundBelow(pos)
+    if not Char then return false end
+    local rayOrigin = pos + Vector3.new(0, 1, 0)
+    local rayDir    = Vector3.new(0, -10, 0)
+    local params    = RaycastParams.new()
+    params.FilterDescendantsInstances = {Char}
+    params.FilterType = RaycastFilterType.Exclude
+
+    local result = workspace:Raycast(rayOrigin, rayDir, params)
+    if result and result.Instance and result.Instance.CanCollide then
+        return true, result.Position
+    end
+    return false, nil
+end
+
+-- Kiểm tra xem vị trí có gần điểm chết độc hại nào không
+local function isBlacklisted(cf)
+    if not cf then return true end
+    local p = cf.Position
+    for _, bPos in ipairs(blacklistedPoints) do
+        if (p - bPos).Magnitude < 30 then
+            return true
+        end
+    end
+    return false
+end
+
+-- Thêm vị trí vào lịch sử an toàn (nếu cách xa điểm cũ > 25 studs)
+local function pushSafeHistory(cf)
+    if not cf or isBlacklisted(cf) then return end
+    if #safeHistory == 0 then
+        table.insert(safeHistory, cf)
+    else
+        local last = safeHistory[#safeHistory]
+        if (cf.Position - last.Position).Magnitude > 25 then
+            table.insert(safeHistory, cf)
+            if #safeHistory > 10 then
+                table.remove(safeHistory, 1) -- Giữ tối đa 10 điểm gần nhất
+            end
+        end
+    end
+end
+
+-- Lấy điểm an toàn tốt nhất (không bị dính bẫy)
+local function getBestSafePoint()
+    -- Thử điểm gần nhất trước
+    if lastGroundPos and not isBlacklisted(lastGroundPos) then
+        return lastGroundPos
+    end
+    -- Lùi dần trong lịch sử
+    for i = #safeHistory, 1, -1 do
+        local cf = safeHistory[i]
+        if not isBlacklisted(cf) then
+            return cf
+        end
+    end
+    return lastGroundPos -- Nếu cùng đường mới dùng điểm này
+end
+
+-- Tạo bệ đỡ an toàn tạm thời (chống rơi xuyên map khi chưa kịp load chunk)
+local function spawnSafePlatform(cf)
+    local plat = Instance.new("Part")
+    plat.Name         = "VOSS_SafePlatform"
+    plat.Size         = Vector3.new(16, 1.5, 16)
+    plat.CFrame       = cf - Vector3.new(0, 2.5, 0)
+    plat.Anchored     = true
+    plat.CanCollide   = true
+    plat.Transparency = 1
+    plat.Material     = Enum.Material.SmoothPlastic
+    plat.Parent       = workspace
+
+    -- Tự hủy sau 3.5 giây khi map thật đã load xong
+    task.delay(3.5, function()
+        pcall(function() plat:Destroy() end)
+    end)
+    return plat
+end
+
 -- Forward declaration
 local startFly, stopFly
 
@@ -80,6 +162,11 @@ local function onCharacterSetup(newChar)
     clearHumConns()
 
     if Hum then
+        -- Khóa BreakJoints để tránh vỡ xác client
+        pcall(function()
+            Hum.BreakJointsOnDeath = false
+        end)
+
         -- 1. Duy trì tốc độ chạy liên tục, chống game reset về 16
         local cSpeed = Hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if State.speed and Hum.WalkSpeed ~= CFG.walkspeed then
@@ -92,15 +179,7 @@ local function onCharacterSetup(newChar)
             pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
         end
 
-        -- 2. Bắt khoảnh khắc chết để lưu vị trí chính xác
-        local cDied = Hum.Died:Connect(function()
-            if HRP then
-                lastExactDeathPos = HRP.CFrame
-            end
-        end)
-        table.insert(humConns, cDied)
-
-        -- 3. Chống sốc khi chạm đất (No Fall Damage)
+        -- 2. Chống sốc khi chạm đất (No Fall Damage)
         local cState = Hum.StateChanged:Connect(function(_, newState)
             if newState == Enum.HumanoidStateType.Landed then
                 if (State.nofall or State.immortal) and HRP then
@@ -120,18 +199,8 @@ if LP.Character then
     onCharacterSetup(LP.Character)
     if HRP then
         lastGroundPos = HRP.CFrame
-        lastAlivePos  = HRP.CFrame
+        pushSafeHistory(HRP.CFrame)
     end
-end
-
--- Hook sự kiện chết của Server game
-local deathRemote = findRemoteEvent("DeathEvent")
-if deathRemote then
-    deathRemote.OnClientEvent:Connect(function()
-        if HRP then
-            lastExactDeathPos = HRP.CFrame
-        end
-    end)
 end
 
 -- ================================================
@@ -139,27 +208,36 @@ end
 -- ================================================
 local ESPCache    = {}
 local MOB_FOLDERS = {"Mobs","Enemies","Monsters","Entities","NPCs","Boss","Enemy"}
+local groundCheckTimer = 0
 
-RunService.Heartbeat:Connect(function()
-    -- Cập nhật nhân vật & vị trí
+RunService.Heartbeat:Connect(function(dt)
     if HRP and Hum and Hum.Health > 0 then
-        -- Lưu vị trí mặt đất khi đang đứng trên sàn (không phải đang rơi trong không khí)
-        local floor = Hum.FloorMaterial
-        if floor and floor ~= Enum.Material.Air then
-            lastGroundPos = HRP.CFrame
+        -- Chỉ ghi nhận vị trí mặt đất khi KHÔNG đang trong 4s cooldown sau tele
+        if not justTeleported then
+            groundCheckTimer = groundCheckTimer + dt
+            if groundCheckTimer >= 0.25 then
+                groundCheckTimer = 0
+                local floor = Hum.FloorMaterial
+                if floor and floor ~= Enum.Material.Air then
+                    local isSolid, hitPos = isSolidGroundBelow(HRP.Position)
+                    if isSolid then
+                        lastGroundPos = HRP.CFrame
+                        pushSafeHistory(HRP.CFrame)
+                    end
+                end
+            end
         end
-        lastAlivePos = HRP.CFrame
 
         -- Ép tốc độ chạy
         if State.speed and Hum.WalkSpeed ~= CFG.walkspeed then
             pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
         end
 
-        -- Chống sát thương rơi: giới hạn vận tốc rơi tối đa (-28)
+        -- Chống sát thương rơi: kìm hãm tốc độ rơi tự do
         if (State.nofall or State.immortal) then
             local vel = HRP.AssemblyLinearVelocity
-            if vel.Y < -28 then
-                HRP.AssemblyLinearVelocity = Vector3.new(vel.X, -20, vel.Z)
+            if vel.Y < -25 then
+                HRP.AssemblyLinearVelocity = Vector3.new(vel.X, -18, vel.Z)
             end
         end
     end
@@ -243,62 +321,108 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ================================================
--- SINGLE UNIFIED CHARACTER RESPAWN HANDLER
+-- HỒI SINH TẠI CHỖ CHUẨN XÁC & BẢO VỆ TUYỆT ĐỐI (v16)
 -- ================================================
 LP.CharacterAdded:Connect(function(newChar)
-    -- 1. Lưu lại điểm hồi sinh mục tiêu TRƯỚC KHI setup char mới
-    local targetCFrame = lastGroundPos or lastExactDeathPos or lastAlivePos
     local now = tick()
 
-    -- Kiểm tra loop chết: nếu chết tại cùng 1 vị trí trong 10 giây
-    if targetCFrame and lastExactDeathPos then
-        local dist = (targetCFrame.Position - lastExactDeathPos.Position).Magnitude
-        if dist < 25 and (now - lastDeathCheckTime) < 10 then
-            deathCountAtPos = deathCountAtPos + 1
-            if deathCountAtPos >= 2 then
-                -- Lùi lại 12 studs an toàn để không spawn trong tầm đánh boss / hố sâu
-                targetCFrame = targetCFrame * CFrame.new(0, 4, 12)
+    -- 1. KIỂM TRA ĐIỂM CHẾT OAN / BẪY:
+    -- Nếu chết trong vòng 4 giây sau lần teleport vừa rồi:
+    -- ĐIỂM ĐÓ LÀ BẪY HOẶC VỰC SÂU ĐỘC HẠI!
+    if justTeleported and (now - lastTeleportTime) < 4.0 then
+        if lastGroundPos then
+            table.insert(blacklistedPoints, lastGroundPos.Position)
+            -- Loại bỏ điểm này khỏi lịch sử
+            for i = #safeHistory, 1, -1 do
+                if (safeHistory[i].Position - lastGroundPos.Position).Magnitude < 30 then
+                    table.remove(safeHistory, i)
+                end
             end
-        else
-            deathCountAtPos = 0
         end
     end
-    lastDeathCheckTime = now
 
-    -- 2. Đợi nhân vật spawn & setup
+    -- 2. Chọn điểm hồi sinh tốt nhất (không nằm trong blacklist)
+    local targetCFrame = getBestSafePoint()
+
+    -- 3. Setup nhân vật mới
     task.wait(0.2)
     onCharacterSetup(newChar)
 
-    -- 3. Xử lý teleport hồi sinh tại chỗ (nếu Bất Tử bật)
+    -- 4. Thực hiện Hồi Sinh Teleport
     if State.immortal and targetCFrame and HRP then
-        task.wait(0.15)
+        justTeleported   = true
+        lastTeleportTime = tick()
+
+        -- Ép engine tải map chunk ở điểm đích (tránh rơi xuyên sàn)
+        pcall(function()
+            LP:RequestStreamAroundAsync(targetCFrame.Position)
+        end)
+
+        -- Tạo bệ đỡ an toàn dưới chân đề phòng map chưa nạp xong
+        spawnSafePlatform(targetCFrame)
+
+        task.wait(0.12)
         if HRP then
-            -- Triệt tiêu vận tốc rơi trước khi tele
+            -- Triệt tiêu hoàn toàn vận tốc
             HRP.AssemblyLinearVelocity  = Vector3.zero
             HRP.AssemblyAngularVelocity = Vector3.zero
-            HRP.CFrame = targetCFrame + Vector3.new(0, 3.5, 0)
 
-            -- Sau 0.35s check lại phòng trường hợp game giật về spawn
+            -- Neo tạm 0.35s để nạp vật lý mặt đất
+            HRP.Anchored = true
+            HRP.CFrame   = targetCFrame + Vector3.new(0, 3.2, 0)
+
+            -- Khóa tạm trạng thái Dead để tránh game kích hoạt chết nhầm
+            if Hum then
+                pcall(function()
+                    Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                    Hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                end)
+            end
+
             task.delay(0.35, function()
+                if HRP then
+                    HRP.Anchored = false
+                    HRP.AssemblyLinearVelocity  = Vector3.zero
+                    HRP.AssemblyAngularVelocity = Vector3.zero
+                end
+                -- Mở lại Dead state sau 1.5s an toàn
+                task.delay(1.2, function()
+                    if Hum then
+                        pcall(function()
+                            Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+                        end)
+                    end
+                end)
+            end)
+
+            -- Backup check: Nếu game giật người chơi về điểm spawn ở Layer 1
+            task.delay(0.5, function()
                 if State.immortal and HRP and targetCFrame then
-                    local currentDist = (HRP.Position - targetCFrame.Position).Magnitude
-                    if currentDist > 30 then
+                    local dist = (HRP.Position - targetCFrame.Position).Magnitude
+                    if dist > 35 then
                         HRP.AssemblyLinearVelocity = Vector3.zero
-                        HRP.CFrame = targetCFrame + Vector3.new(0, 3.5, 0)
+                        HRP.CFrame = targetCFrame + Vector3.new(0, 3.2, 0)
                     end
                 end
             end)
         end
+
+        -- Sau 4 giây sống sót an toàn mới bắt đầu ghi nhận lại vị trí an toàn mới
+        task.delay(4.0, function()
+            justTeleported = false
+        end)
+    else
+        justTeleported = false
     end
 
-    -- 4. Khôi phục Speed Hack ngay lập tức
+    -- 5. Khôi phục Speed Hack ngay lập tức
     if State.speed and Hum then
         pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
     end
 
-    -- 5. Khôi phục Fly (nếu đang bật)
+    -- 6. Khôi phục Fly (nếu đang bật)
     if State.fly then
-        task.wait(0.25)
+        task.wait(0.3)
         if startFly then startFly() end
     end
 end)
@@ -309,12 +433,12 @@ end)
 local function startImmortal()
     if HRP then
         lastGroundPos = HRP.CFrame
-        lastAlivePos  = HRP.CFrame
+        pushSafeHistory(HRP.CFrame)
     end
 end
 
 local function stopImmortal()
-    deathCountAtPos = 0
+    blacklistedPoints = {}
 end
 
 -- ================================================
@@ -522,7 +646,7 @@ sk.Thickness = 1.5
 local Title = Instance.new("TextLabel", Panel)
 Title.Size               = UDim2.new(1, 0, 0, 42)
 Title.BackgroundTransparency = 1
-Title.Text               = "VOSS  |  Abyss  v15"
+Title.Text               = "VOSS  |  Abyss  v16"
 Title.TextColor3         = Color3.fromRGB(165, 110, 255)
 Title.Font               = Enum.Font.GothamBold
 Title.TextSize           = 17
@@ -630,13 +754,13 @@ local function makeAction(label, callback)
 end
 
 -- Tạo các nút chức năng
-makeToggle("☠  Bất Tử (Hồi Sinh Tại Chỗ)", "immortal", startImmortal, stopImmortal)
-makeToggle("🪂  Chống Rơi (No Fall)",       "nofall")
-makeToggle("⚡  Speed Hack (Không Mất)",     "speed")
-makeToggle("🕊  Bay (Cần Ảo Mobile / WASD)","fly", startFly, stopFly)
-makeToggle("👁  ESP Quái & Người",           "esp")
-makeToggle("⚔  Auto Farm",                  "autofarm", startFarm, stopFarm)
-makeAction("📍 Tele → Mob Gần Nhất",        teleportToNearest)
+makeToggle("☠  Bất Tử (Hồi Sinh Tránh Oan)", "immortal", startImmortal, stopImmortal)
+makeToggle("🪂  Chống Rơi (No Fall)",          "nofall")
+makeToggle("⚡  Speed Hack (Không Mất)",        "speed")
+makeToggle("🕊  Bay (Cần Ảo Mobile / WASD)",   "fly", startFly, stopFly)
+makeToggle("👁  ESP Quái & Người",              "esp")
+makeToggle("⚔  Auto Farm",                     "autofarm", startFarm, stopFarm)
+makeAction("📍 Tele → Mob Gần Nhất",           teleportToNearest)
 
 -- ================================================
 -- CỬ CHỈ ĐIỀU KHIỂN (3 NGÓN TAY MOBILE & RSHIFT PC)
@@ -690,4 +814,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] v15 loaded — Hồi sinh chuẩn xác, Chống rơi No Fall, Speed không mất!")
+print("[VOSS] v16 loaded — Chống rơi map, Tự tránh bẫy chết, Bệ đỡ an toàn!")
