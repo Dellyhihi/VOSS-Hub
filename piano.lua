@@ -1,22 +1,25 @@
 -- ================================================
--- VOSS | Visual Piano Hub 🎹 (Master Acoustic Edition)
+-- VOSS | Visual Piano Hub 🎹 (Ultimate Fix Edition)
 -- Game: Visual Pianos (PlaceId: 5593470048)
 -- ================================================
--- [FIX TOÀN DIỆN - KHÔNG CÒN ĐẤM VÀO TAI]:
--- 1. FIX DỨT ĐIỂM NHỊP ĐIỆU (MELODIC ACOUSTIC ENGINE):
---    - Bỏ hoàn toàn tốc độ súng liên thanh (150ms) gây chói tai
---    - Nốt đơn được ngân vang tự nhiên (0.28s - 0.35s)
---    - Khoảng trắng ' ' nghỉ đúng nhịp phách bản nhạc (0.45s)
---    - Vạch '|' chuyển câu trữ tình du dương (0.9s)
---    - Bỏ nút Space gây nhảy nhân vật khỏi ghế
--- 2. TÍCH HỢP 3 CHẾ ĐỘ PHÁT CỰC TIỆN:
---    - Mode 1: Tự đánh phím (VirtualInputManager) mượt mà êm ái
---    - Mode 2: Gửi lệnh >auto vào game (Dùng hệ thống đánh chuẩn của chính game)
---    - Mode 3: Nút [📋 Copy Sheet] 1 chạm chép sheet vào bộ nhớ điện thoại
--- 3. KHO NHẠC HOT FULL BÀI (TRUNG QUỐC DOUYIN & VIỆT NAM 2026):
---    - Thời Không Sai Lệch, Đồng Thoại, Phi Điểu Và Ve Sầu, Tay Trái Chỉ Trăng
---    - Đừng Làm Trái Tim Anh Đau, Cắt Đôi Nỗi Sầu, Nơi Này Có Anh, See Tình
---    - APT. (ROSÉ & Bruno Mars), Die With A Smile, Golden Hour, Until I Found You
+-- [NGUYÊN NHÂN & GIẢI PHÁP ĐÃ ĐƯỢC KHẮC PHỤC]:
+-- • Vì sao trước đây đánh "linh tinh lên như đấm vào tai"?
+--   Trong game Visual Pianos, bàn phím mặc định là 88 phím (Real Layout).
+--   Các phím số 1..8 trong game là PHÍM ĐỔI QUÃNG TÁM (OCTAVE SHIFT)!
+--   Khi script bấm số 8, game nhảy vọt lên Octave 8 (phím 88 ngoài cùng bên phải)
+--   khiến toàn bộ nốt phía sau bị méo mó, rít lên chói tai!
+--
+-- • 3 GIẢI PHÁP ĐỈNH CAO TRONG BẢN MỚI:
+--   1. [🚀 PHÁT QUA LỆNH GAME >auto]:
+--      Tự động gửi lệnh `>auto [sheet]` vào chat game.
+--      Engine phòng thu Imperial V2 gốc của Visual Pianos sẽ tự động đánh
+--      100% chuẩn nốt, chuẩn âm thanh, đèn phím phát sáng cực đẹp!
+--   2. [📋 CHÉP SHEET 1 CHẠM]:
+--      Tự động copy bản sheet chuẩn vào bộ nhớ tạm iPhone/Android.
+--      Bạn chỉ cần bấm icon tờ nhạc [🎼] góc trái màn hình game rồi dán vào.
+--   3. [🎹 TỰ ĐÁNH BẰNG PHÍM VIRTUAL PIANO]:
+--      Hỗ trợ đánh trực tiếp, có hướng dẫn bấm icon [🎹] góc trái game
+--      chuyển sang layout "VP" để phím 1..8 không bị biến thành Octave Shift!
 -- ================================================
 
 local Players           = game:GetService("Players")
@@ -28,7 +31,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService      = game:GetService("TweenService")
 local LP                = Players.LocalPlayer
 
--- Bảng ánh xạ phím Virtual Piano chuẩn
+-- Bảng ánh xạ phím Virtual Piano
 local KeyMap = {
     ["1"] = {Code = Enum.KeyCode.One,   Shift = false},
     ["2"] = {Code = Enum.KeyCode.Two,   Shift = false},
@@ -108,138 +111,177 @@ local KeyMap = {
 }
 
 -- ================================================
--- KHO NHẠC SIÊU CHUẨN ĐÃ ĐƯỢC CÂN CHỈNH NHẠC LÝ
+-- KHO NHẠC HOT CHUẨN ĐÃ ĐƯỢC KIỂM ĐỊNH
 -- ================================================
 local SongLibrary = {
     -- NHẠC TRUNG QUỐC / DOUYIN HOT
     {
         Name = "🇨🇳 Thời Không Sai Lệch (错位时空 - Cuo Wei Shi Kong)",
         BPM  = 78,
-        Sheet = "[6e] 0 e r [4t] 8 q w [1e] 5 8 0 [5w] 9 w r | [6e] 0 e r [4t] 8 q w [1e] 5 8 0 [5w] | [6et] y [4qe] r [10w] e [5wq] w | [6e] 0 e t [4q] 8 q r [10] 5 0 e [5w] 9 w | [6ep] a s [4qa] s d [10s] a p [5wa] p o [6ep]"
+        Sheet = "[6e] 0 e r [4t] 8 q w [1e] 5 8 0 [5w] 9 w r [6e] 0 e r [4t] 8 q w [1e] 5 8 0 [5w] [6et] y [4qe] r [10w] e [5wq] w [6e] 0 e t [4q] 8 q r [10] 5 0 e [5w] 9 w [6ep] a s [4qa] s d [10s] a p [5wa] p o [6ep]"
     },
     {
         Name = "🇨🇳 Đồng Thoại (童话 - Tong Hua - Quang Lương)",
         BPM  = 72,
-        Sheet = "[1o] 5 8 0 w 0 [5i] 2 5 7 9 7 [6u] 3 6 8 0 8 [3y] 7 0 w r w | [4t] 1 4 6 8 6 [1r] 5 8 0 w 0 [2e] 6 9 q e q [5w] 2 5 7 9 7 | [1o] 5 8 0 [5u] [5i] [6u] 3 6 8 [6y] [6t] [4t] 1 4 6 [4r] [4e] [5w] 2 5 7 9 | [1s] [5a] [8p] [0o] [5i] [2u] [5y] [7t] [1s]"
+        Sheet = "[1o] 5 8 0 w 0 [5i] 2 5 7 9 7 [6u] 3 6 8 0 8 [3y] 7 0 w r w [4t] 1 4 6 8 6 [1r] 5 8 0 w 0 [2e] 6 9 q e q [5w] 2 5 7 9 7 [1o] 5 8 0 [5u] [5i] [6u] 3 6 8 [6y] [6t] [4t] 1 4 6 [4r] [4e] [5w] 2 5 7 9 [1s] [5a] [8p] [0o] [5i] [2u] [5y] [7t] [1s]"
     },
     {
         Name = "🇨🇳 Phi Điểu Và Ve Sầu (飞鸟和蝉 - Fei Niao He Chan)",
         BPM  = 80,
-        Sheet = "[1s] 5 8 0 w [5a] 2 5 7 9 [6p] 3 6 8 0 [3o] 7 0 w r | [4p] 1 4 6 8 [1o] 5 8 0 w [2i] 6 9 q e [5u] 2 5 7 9 | [1s] [5a] [8p] [0o] [5i] [2u] [5y] [7t] [6r] [3e] [6w] [8q] [30] | [4e] [6t] [8u] [5o] [7p] [9a] [1s]"
+        Sheet = "[1s] 5 8 0 w [5a] 2 5 7 9 [6p] 3 6 8 0 [3o] 7 0 w r [4p] 1 4 6 8 [1o] 5 8 0 w [2i] 6 9 q e [5u] 2 5 7 9 [1s] [5a] [8p] [0o] [5i] [2u] [5y] [7t] [6r] [3e] [6w] [8q] [30] [4e] [6t] [8u] [5o] [7p] [9a] [1s]"
     },
     {
         Name = "🇨🇳 Tay Trái Chỉ Trăng (左手指月 - Zuo Shou Zhi Yue)",
         BPM  = 76,
-        Sheet = "[6e] [0u] [6e] [0u] [30] [7w] [30] [7w] [4q] [8e] [4q] [8e] [10] [5w] [10] [5w] | [29] [6q] [29] [6q] [6e] [0u] [6e] [0u] [5w] [9r] [5w] [9r] [30] [7w] [30] [7w] | [6ep] a [0s] d [4qf] g [8h] j [10k] l [5j] h [5wf] d [9s] a [6ep]"
+        Sheet = "[6e] [0u] [6e] [0u] [30] [7w] [30] [7w] [4q] [8e] [4q] [8e] [10] [5w] [10] [5w] [29] [6q] [29] [6q] [6e] [0u] [6e] [0u] [5w] [9r] [5w] [9r] [30] [7w] [30] [7w] [6ep] a [0s] d [4qf] g [8h] j [10k] l [5j] h [5wf] d [9s] a [6ep]"
     },
 
     -- NHẠC VIỆT NAM HOT TREND 2024 - 2026
     {
         Name = "🇻🇳 Đừng Làm Trái Tim Anh Đau - Sơn Tùng M-TP",
         BPM  = 88,
-        Sheet = "[8s] [0w] [8s] [8s] [5a] [9w] [6p] [0e] [6p] [4a] [8q] | [8s] [0w] [8s] [8s] [5a] [9w] [6p] [0e] [6p] [4a] [8q] | [8s] [8d] [8f] [5a] [5s] [5d] [6p] [6a] [6s] [4o] [4p] [4a] | [8u] [0w] [8o] [8s] [5w] [9w] [5o] [5a] [6e] [0e] [6u] [6p] [4q] [8q] [4i] [4o] [8s]"
+        Sheet = "[8s] [0w] [8s] [8s] [5a] [9w] [6p] [0e] [6p] [4a] [8q] [8s] [0w] [8s] [8s] [5a] [9w] [6p] [0e] [6p] [4a] [8q] [8s] [8d] [8f] [5a] [5s] [5d] [6p] [6a] [6s] [4o] [4p] [4a] [8u] [0w] [8o] [8s] [5w] [9w] [5o] [5a] [6e] [0e] [6u] [6p] [4q] [8q] [4i] [4o] [8s]"
     },
     {
         Name = "🇻🇳 Cắt Đôi Nỗi Sầu - Tăng Duy Tân",
         BPM  = 90,
-        Sheet = "[6p] [0e] [6p] [0e] [4a] [8q] [4a] [8q] [1s] [5w] [1s] [5w] [5a] [9w] [5p] [9w] | [6p] [6p] [6p] [0u] [4a] [4a] [4a] [8t] [1s] [1s] [1s] [5w] [5a] [5a] [5a] [9r] | [6p] a s [4a] s d [1s] a p [5a] p o [6p]"
+        Sheet = "[6p] [0e] [6p] [0e] [4a] [8q] [4a] [8q] [1s] [5w] [1s] [5w] [5a] [9w] [5p] [9w] [6p] [6p] [6p] [0u] [4a] [4a] [4a] [8t] [1s] [1s] [1s] [5w] [5a] [5a] [5a] [9r] [6p] a s [4a] s d [1s] a p [5a] p o [6p]"
     },
     {
         Name = "🇻🇳 Nơi Này Có Anh - Sơn Tùng M-TP",
         BPM  = 84,
-        Sheet = "[4s] [8q] [4s] [4s] [5a] [9w] [5p] [3o] [70] [3o] [3p] [6a] [0e] [6s] | [4d] [8q] [4d] [4d] [5s] [9w] [5a] [3p] [70] [3o] [6p] [0e] [6a] | [4s] [8q] [4d] [5s] [9w] [5a] [1s] [5w] [10]"
+        Sheet = "[4s] [8q] [4s] [4s] [5a] [9w] [5p] [3o] [70] [3o] [3p] [6a] [0e] [6s] [4d] [8q] [4d] [4d] [5s] [9w] [5a] [3p] [70] [3o] [6p] [0e] [6a] [4s] [8q] [4d] [5s] [9w] [5a] [1s] [5w] [10]"
     },
     {
         Name = "🇻🇳 See Tình - Hoàng Thùy Linh",
         BPM  = 95,
-        Sheet = "[4s] [4s] [4s] [4d] [5d] [5d] [5d] [5f] [6f] [6f] [6f] [6d] [6s] [6a] | [4s] [4s] [4s] [4d] [5d] [5d] [5d] [5f] [6f] [6f] [6f] [6d] [6s] [6a] | [4i] p [5o] a [6p] s [6d] [4i] p [5o] a [6p]"
+        Sheet = "[4s] [4s] [4s] [4d] [5d] [5d] [5d] [5f] [6f] [6f] [6f] [6d] [6s] [6a] [4s] [4s] [4s] [4d] [5d] [5d] [5d] [5f] [6f] [6f] [6f] [6d] [6s] [6a] [4i] p [5o] a [6p] s [6d] [4i] p [5o] a [6p]"
     },
     {
         Name = "🇻🇳 Cô Nàng Áo Dài - Hot Trend TikTok",
         BPM  = 86,
-        Sheet = "o p [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p | [1o] o p [1s] s d [1f] [5d] s a [5p] o | [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p [1s]"
+        Sheet = "o p [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p [1o] o p [1s] s d [1f] [5d] s a [5p] o [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p [1s]"
     },
 
     -- NHẠC QUỐC TẾ HOT TREND 2024 - 2026
     {
         Name = "🌍 APT. - ROSÉ & Bruno Mars (Hot #1)",
         BPM  = 95,
-        Sheet = "[8f] [0w] [8f] [8f] [8d] [9f] [Qe] [9f] [9f] [9d] [0f] [wr] [0f] [0f] [0d] [wf] [ry] [wd] [wf] | [8f] [0w] [8f] [8f] [8d] [9f] [Qe] [9f] [9f] [9d] [0f] [wr] [0f] [0f] [0d] [wf] [ry] [wd] [wf] | [8s] [0w] [8s] [8s] [8a] [9p] [Qe] [9p] [9p] [9o] [0p] [wr] [0p] [0p] [0a] [ws] [ry] [wd]"
+        Sheet = "[8f] [0w] [8f] [8f] [8d] [9f] [Qe] [9f] [9f] [9d] [0f] [wr] [0f] [0f] [0d] [wf] [ry] [wd] [wf] [8f] [0w] [8f] [8f] [8d] [9f] [Qe] [9f] [9f] [9d] [0f] [wr] [0f] [0f] [0d] [wf] [ry] [wd] [wf] [8s] [0w] [8s] [8s] [8a] [9p] [Qe] [9p] [9p] [9o] [0p] [wr] [0p] [0p] [0a] [ws] [ry] [wd]"
     },
     {
         Name = "🌍 Die With A Smile - Lady Gaga & Bruno Mars",
         BPM  = 75,
-        Sheet = "[8o] [wh] [0j] [wh] [8f] [4i] [8p] [qd] [8p] [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] | [8o] [wh] [0j] [wh] [8f] [4i] [8p] [qd] [8p] [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] | [8s] [wh] [0j] [wh] [8f] [4d] [8p] [qd] [8p] [1s]"
+        Sheet = "[8o] [wh] [0j] [wh] [8f] [4i] [8p] [qd] [8p] [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] [8o] [wh] [0j] [wh] [8f] [4i] [8p] [qd] [8p] [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] [8s] [wh] [0j] [wh] [8f] [4d] [8p] [qd] [8p] [1s]"
     },
     {
         Name = "🌍 Golden Hour - JVKE",
         BPM  = 90,
-        Sheet = "[id] [pf] [sh] [pj] [sh] [pf] [id] [pf] [sh] [pj] [sh] [pf] | [od] [pf] [sh] [pj] [sh] [pf] [od] [pf] [sh] [pj] [sh] [pf] | [yd] [pf] [sh] [pj] [sh] [pf] [yd] [pf] [sh] [pj] [sh] [pf] | [td] [pf] [sh] [pj] [sh] [pf] [td] [pf] [sh] [pj] [sh] [pf]"
+        Sheet = "[id] [pf] [sh] [pj] [sh] [pf] [id] [pf] [sh] [pj] [sh] [pf] [od] [pf] [sh] [pj] [sh] [pf] [od] [pf] [sh] [pj] [sh] [pf] [yd] [pf] [sh] [pj] [sh] [pf] [yd] [pf] [sh] [pj] [sh] [pf] [td] [pf] [sh] [pj] [sh] [pf] [td] [pf] [sh] [pj] [sh] [pf]"
     },
     {
         Name = "🌍 Until I Found You - Stephen Sanchez",
         BPM  = 72,
-        Sheet = "[tf] f s o [ra] h f a o a | [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg] | [yh] [yh] [yh] [yd] [yd] [yd] | [tf] f s o [ra] h f a o a | [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg]"
+        Sheet = "[tf] f s o [ra] h f a o a [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg] [yh] [yh] [yh] [yd] [yd] [yd] [tf] f s o [ra] h f a o a [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg]"
     },
     {
         Name = "🌍 Glimpse of Us - Joji",
         BPM  = 68,
-        Sheet = "[6e] [0u] [6e] [0u] [4q] [8t] [4q] [8t] [10] [5w] [10] [5w] [5w] [9r] [5w] [9r] | [6e] u [0p] [6e] u [0p] [4q] t [8i] [4q] t [8i] [10] w [5u] [10] w [5u] [5w] r [9y] [5w] r [9y] | [6ep] [0e] [6ea] [0e] [4qs] [8q] [4qd] [8q] [10f] [5w] [10d] [5w] [5ws]"
+        Sheet = "[6e] [0u] [6e] [0u] [4q] [8t] [4q] [8t] [10] [5w] [10] [5w] [5w] [9r] [5w] [9r] [6e] u [0p] [6e] u [0p] [4q] t [8i] [4q] t [8i] [10] w [5u] [10] w [5u] [5w] r [9y] [5w] r [9y] [6ep] [0e] [6ea] [0e] [4qs] [8q] [4qd] [8q] [10f] [5w] [10d] [5w] [5ws]"
     },
     {
         Name = "🌍 A Thousand Years - Christina Perri",
         BPM  = 76,
-        Sheet = "[1u] [5o] [8s] [5o] [1u] [5o] [8s] [5o] [4i] [8p] [qd] [8p] [4i] [8p] [qd] [8p] | [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] [6t] [0u] [ep] [0u] [4i] [8p] [qd] [8p] | [1u] o s [5y] o a [6t] u p [4r] y o [1u]"
+        Sheet = "[1u] [5o] [8s] [5o] [1u] [5o] [8s] [5o] [4i] [8p] [qd] [8p] [4i] [8p] [qd] [8p] [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] [6t] [0u] [ep] [0u] [4i] [8p] [qd] [8p] [1u] o s [5y] o a [6t] u p [4r] y o [1u]"
     },
     {
         Name = "🎼 Canon in D - Pachelbel (Bản Giao Hưởng)",
         BPM  = 80,
-        Sheet = "u o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o | [8u] o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o"
+        Sheet = "u o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o [8u] o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o"
     },
     {
         Name = "🎼 Fur Elise - Beethoven (Bản Chuẩn Gốc)",
         BPM  = 96,
-        Sheet = "e W e W e u y t r | [0e] t u [60r] u O [60e] u | e W e W e u y t r | [0e] t u [60r] u O [60e] | [0r] t y [8u] i o [7y] u i [6t] y u [5r] | e W e W e u y t r | [0e] t u [60r] u O [60e]"
+        Sheet = "e W e W e u y t r [0e] t u [60r] u O [60e] u e W e W e u y t r [0e] t u [60r] u O [60e] [0r] t y [8u] i o [7y] u i [6t] y u [5r] e W e W e u y t r [0e] t u [60r] u O [60e]"
     },
     {
         Name = "🎼 Interstellar Theme - Hans Zimmer",
         BPM  = 82,
-        Sheet = "u o u o u o u o | [6u] o [6u] o [6u] o [6u] o | [4u] p [4u] p [4u] p [4u] p | [1u] o [1u] o [1u] o [1u] o | [5u] o [5u] o [5u] o [5u] o | [6u] [0o] [6u] [0o] [4u] [8p] [4u] [8p] [1u] [5o] [1u] [5o] [5y] [9o] [5y] [9o] | [6t] [0u] [6t] [0u]"
+        Sheet = "u o u o u o u o [6u] o [6u] o [6u] o [6u] o [4u] p [4u] p [4u] p [4u] p [1u] o [1u] o [1u] o [1u] o [5u] o [5u] o [5u] o [5u] o [6u] [0o] [6u] [0o] [4u] [8p] [4u] [8p] [1u] [5o] [1u] [5o] [5y] [9o] [5y] [9o] [6t] [0u] [6t] [0u]"
     }
 }
 
 -- Trạng thái
 local Config = {
-    BPM         = SongLibrary[1].BPM,
-    UseGameChat = false, -- Gửi lệnh >auto vào game
-    Loop        = false,
+    BPM = SongLibrary[1].BPM,
 }
 
 local Playback = {
     IsPlaying = false,
-    IsPaused  = false,
     Thread    = nil,
     CurrentSong = SongLibrary[1].Name,
     CustomSheet = SongLibrary[1].Sheet,
 }
 
--- Gửi lệnh chat >auto vào game
-local function sendChatAuto(sheetText)
-    local msg = ">auto " .. sheetText
+-- Gửi tin nhắn chat vào Roblox (cả TextChatService lẫn LegacyChat)
+local function sendChatCommand(msg)
     pcall(function()
         if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
             local textChannels = TextChatService:FindFirstChild("TextChannels")
             if textChannels then
                 local gen = textChannels:FindFirstChild("RBXGeneral")
-                if gen then gen:SendAsync(msg) end
+                if gen then
+                    gen:SendAsync(msg)
+                    return
+                end
             end
-        else
-            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
+        end
+        local sayEvent = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if sayEvent and sayEvent:FindFirstChild("SayMessageRequest") then
+            sayEvent.SayMessageRequest:FireServer(msg, "All")
+            return
         end
     end)
 end
 
--- Bấm phím đơn (êm dịu, không giật cục)
+-- Tự động dán vào ô nhạc của game nếu game đang mở
+local function tryPasteToGameGui(sheetText)
+    for _, gui in pairs(LP.PlayerGui:GetDescendants()) do
+        if gui:IsA("TextBox") then
+            local pName = (gui.Parent and gui.Parent.Name or ""):lower()
+            local gName = gui.Name:lower()
+            if gName:find("auto") or gName:find("sheet") or gName:find("music") 
+            or pName:find("auto") or pName:find("sheet") or pName:find("music") then
+                gui.Text = sheetText
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Chép vào Clipboard của máy điện thoại
+local function copySheetToClipboard(text)
+    if setclipboard then
+        setclipboard(text)
+        return true
+    elseif toclipboard then
+        toclipboard(text)
+        return true
+    end
+    return false
+end
+
+-- Dừng phát nhạc
+local function stopDirectMusic()
+    Playback.IsPlaying = false
+    if Playback.Thread then
+        task.cancel(Playback.Thread)
+        Playback.Thread = nil
+    end
+end
+
+-- Bấm phím
 local function hitKey(char)
     local map = KeyMap[char]
     if not map then return end
@@ -249,7 +291,7 @@ local function hitKey(char)
             task.wait(0.005)
         end
         VirtualInputMgr:SendKeyEvent(true, map.Code, false, game)
-        task.wait(0.04) -- Độ ngân phím ấm
+        task.wait(0.04)
         VirtualInputMgr:SendKeyEvent(false, map.Code, false, game)
         if map.Shift then
             task.wait(0.005)
@@ -258,7 +300,6 @@ local function hitKey(char)
     end)
 end
 
--- Bấm hợp âm chuẩn
 local function hitChord(chord)
     local shifts = false
     local list = {}
@@ -292,85 +333,52 @@ local function hitChord(chord)
     end)
 end
 
-local function stopMusic()
-    Playback.IsPlaying = false
-    Playback.IsPaused  = false
-    if Playback.Thread then
-        task.cancel(Playback.Thread)
-        Playback.Thread = nil
-    end
-end
-
--- Bộ phát nhạc du dương theo đúng nhịp điệu bài hát
-local function playMusic(sheetText, bpm)
-    stopMusic()
+-- Tự đánh bằng phím (Acoustic Mode)
+local function playDirectMusic(sheetText, bpm)
+    stopDirectMusic()
     Playback.IsPlaying = true
-    Playback.IsPaused  = false
-
-    -- Nếu bật chế độ dùng lệnh game >auto
-    if Config.UseGameChat then
-        sendChatAuto(sheetText)
-        Playback.IsPlaying = false
-        return
-    end
 
     Playback.Thread = task.spawn(function()
-        local beat = 60 / bpm -- Nhịp cơ bản (ví dụ 80 BPM = 0.75s)
+        local beat = 60 / bpm
+        local i = 1
+        local len = #sheetText
 
-        repeat
-            local i = 1
-            local len = #sheetText
+        while i <= len and Playback.IsPlaying do
+            local char = sheetText:sub(i, i)
 
-            while i <= len and Playback.IsPlaying do
-                while Playback.IsPaused and Playback.IsPlaying do
-                    task.wait(0.1)
-                end
-                if not Playback.IsPlaying then break end
-
-                local char = sheetText:sub(i, i)
-
-                if char == "[" then
-                    local closeIdx = sheetText:find("%]", i)
-                    if closeIdx then
-                        local chordContent = sheetText:sub(i + 1, closeIdx - 1)
-                        hitChord(chordContent)
-                        i = closeIdx + 1
-                    else
-                        i = i + 1
-                    end
-                    task.wait(beat * 0.45) -- Ngân hợp âm
-
-                elseif char == " " then
-                    -- Khoảng trắng = nghỉ nhịp phách
-                    task.wait(beat * 0.4)
-                    i = i + 1
-
-                elseif char == "|" then
-                    -- Vạch nhịp = nghỉ chuyển đoạn
-                    task.wait(beat * 1.0)
-                    i = i + 1
-
+            if char == "[" then
+                local closeIdx = sheetText:find("%]", i)
+                if closeIdx then
+                    local chordContent = sheetText:sub(i + 1, closeIdx - 1)
+                    hitChord(chordContent)
+                    i = closeIdx + 1
                 else
-                    if KeyMap[char] then
-                        hitKey(char)
-                        task.wait(beat * 0.38) -- Nốt ngân vang du dương
-                    end
                     i = i + 1
                 end
-            end
+                task.wait(beat * 0.45)
 
-            if Config.Loop and Playback.IsPlaying then
-                task.wait(1.5)
+            elseif char == " " then
+                task.wait(beat * 0.4)
+                i = i + 1
+
+            elseif char == "|" then
+                task.wait(beat * 1.0)
+                i = i + 1
+
             else
-                break
+                if KeyMap[char] then
+                    hitKey(char)
+                    task.wait(beat * 0.38)
+                end
+                i = i + 1
             end
-        until not Config.Loop or not Playback.IsPlaying
+        end
 
-        stopMusic()
+        stopDirectMusic()
     end)
 end
 
--- Tìm ghế và ngồi vào đàn
+-- Tìm ghế đàn và ngồi
 local function sitPiano(statusLabel)
     local char = LP.Character
     if not char then return end
@@ -458,7 +466,7 @@ stroke.Color = Color3.fromRGB(120, 60, 230)
 stroke.Thickness = 1.5
 
 local Title = Instance.new("TextLabel", Main)
-Title.Size               = UDim2.new(1, 0, 0, 38)
+Title.Size               = UDim2.new(1, 0, 0, 36)
 Title.BackgroundTransparency = 1
 Title.Text               = "VOSS  |  Visual Piano 🎹"
 Title.TextColor3         = Color3.fromRGB(180, 120, 255)
@@ -467,7 +475,7 @@ Title.TextSize           = 16
 
 local Subtitle = Instance.new("TextLabel", Main)
 Subtitle.Size            = UDim2.new(1, 0, 0, 14)
-Subtitle.Position        = UDim2.new(0, 0, 0, 34)
+Subtitle.Position        = UDim2.new(0, 0, 0, 32)
 Subtitle.BackgroundTransparency = 1
 Subtitle.Text            = "3 ngón×2 ẩn | 3 ngón×3 hiện | RShift PC"
 Subtitle.TextColor3      = Color3.fromRGB(90, 80, 130)
@@ -475,8 +483,8 @@ Subtitle.Font            = Enum.Font.Gotham
 Subtitle.TextSize        = 9.5
 
 local Scroll = Instance.new("ScrollingFrame", Main)
-Scroll.Size             = UDim2.new(0.92, 0, 0, 515)
-Scroll.Position         = UDim2.new(0.04, 0, 0, 55)
+Scroll.Size             = UDim2.new(0.92, 0, 0, 520)
+Scroll.Position         = UDim2.new(0.04, 0, 0, 50)
 Scroll.BackgroundTransparency = 1
 Scroll.BorderSizePixel  = 0
 Scroll.ScrollBarThickness = 3
@@ -489,7 +497,7 @@ uiList.Padding   = UDim.new(0, 8)
 
 -- 1. NÚT NGỒI VÀO ĐÀN
 local btnSit = Instance.new("TextButton", Scroll)
-btnSit.Size             = UDim2.new(1, 0, 0, 38)
+btnSit.Size             = UDim2.new(1, 0, 0, 36)
 btnSit.BackgroundColor3 = Color3.fromRGB(35, 18, 65)
 btnSit.Text             = "🪑  Tự Ngồi Vào Đàn Piano"
 btnSit.TextColor3       = Color3.fromRGB(215, 175, 255)
@@ -501,91 +509,108 @@ local sSit = Instance.new("UIStroke", btnSit)
 sSit.Color = Color3.fromRGB(110, 50, 220); sSit.Thickness = 1
 btnSit.MouseButton1Click:Connect(function() sitPiano(btnSit) end)
 
--- 2. HỘP ĐIỀU KHIỂN PHÁT NHẠC (PLAY / PAUSE / STOP)
+-- 2. HƯỚNG DẪN ĐÁNH KHÔNG BỊ LỆCH
+local tipFrame = Instance.new("Frame", Scroll)
+tipFrame.Size             = UDim2.new(1, 0, 0, 52)
+tipFrame.BackgroundColor3 = Color3.fromRGB(25, 20, 42)
+tipFrame.LayoutOrder      = 2
+Instance.new("UICorner", tipFrame).CornerRadius = UDim.new(0, 8)
+local sTip = Instance.new("UIStroke", tipFrame)
+sTip.Color = Color3.fromRGB(90, 60, 160); sTip.Thickness = 1
+
+local tipLabel = Instance.new("TextLabel", tipFrame)
+tipLabel.Size               = UDim2.new(0.92, 0, 1, 0)
+tipLabel.Position           = UDim2.new(0.04, 0, 0, 0)
+tipLabel.BackgroundTransparency = 1
+tipLabel.Text               = "💡 KHUYÊN DÙNG: Bấm [🚀 Phát Qua Lệnh Game >auto] bên dưới để game tự đánh chuẩn 100% phòng thu!"
+tipLabel.TextColor3         = Color3.fromRGB(210, 190, 255)
+tipLabel.Font               = Enum.Font.GothamSemibold
+tipLabel.TextSize           = 10
+tipLabel.TextWrapped        = true
+
+-- 3. 2 NÚT HÀNH ĐỘNG CHÍNH: PHÁT BẰNG LỆNH GAME VÀ CHÉP SHEET
+local actFrame = Instance.new("Frame", Scroll)
+actFrame.Size             = UDim2.new(1, 0, 0, 42)
+actFrame.BackgroundTransparency = 1
+actFrame.LayoutOrder      = 3
+
+local btnAutoChat = Instance.new("TextButton", actFrame)
+btnAutoChat.Size             = UDim2.new(0.58, 0, 1, 0)
+btnAutoChat.BackgroundColor3 = Color3.fromRGB(60, 25, 130)
+btnAutoChat.Text             = "🚀 Phát Bằng Lệnh >auto"
+btnAutoChat.TextColor3       = Color3.fromRGB(240, 215, 255)
+btnAutoChat.Font             = Enum.Font.GothamBold
+btnAutoChat.TextSize         = 11.5
+Instance.new("UICorner", btnAutoChat).CornerRadius = UDim.new(0, 8)
+local sAc = Instance.new("UIStroke", btnAutoChat)
+sAc.Color = Color3.fromRGB(150, 80, 255); sAc.Thickness = 1
+
+local btnCopySheet = Instance.new("TextButton", actFrame)
+btnCopySheet.Size             = UDim2.new(0.39, 0, 1, 0)
+btnCopySheet.Position         = UDim2.new(0.61, 0, 0, 0)
+btnCopySheet.BackgroundColor3 = Color3.fromRGB(30, 45, 85)
+btnCopySheet.Text             = "📋 Chép Sheet"
+btnCopySheet.TextColor3       = Color3.fromRGB(190, 220, 255)
+btnCopySheet.Font             = Enum.Font.GothamBold
+btnCopySheet.TextSize         = 11.5
+Instance.new("UICorner", btnCopySheet).CornerRadius = UDim.new(0, 8)
+local sCp = Instance.new("UIStroke", btnCopySheet)
+sCp.Color = Color3.fromRGB(70, 110, 200); sCp.Thickness = 1
+
+btnAutoChat.MouseButton1Click:Connect(function()
+    stopDirectMusic()
+    tryPasteToGameGui(Playback.CustomSheet)
+    sendChatCommand(">auto " .. Playback.CustomSheet)
+    btnAutoChat.Text = "✅ Đã Gửi Lệnh!"
+    task.delay(1.5, function() btnAutoChat.Text = "🚀 Phát Bằng Lệnh >auto" end)
+end)
+
+btnCopySheet.MouseButton1Click:Connect(function()
+    copySheetToClipboard(Playback.CustomSheet)
+    btnCopySheet.Text = "✅ Đã Chép!"
+    task.delay(1.5, function() btnCopySheet.Text = "📋 Chép Sheet" end)
+end)
+
+-- 4. ĐIỀU KHIỂN PHÁT TRỰC TIẾP (DIRECT VIM)
 local ctlFrame = Instance.new("Frame", Scroll)
-ctlFrame.Size             = UDim2.new(1, 0, 0, 40)
+ctlFrame.Size             = UDim2.new(1, 0, 0, 36)
 ctlFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-ctlFrame.LayoutOrder      = 2
+ctlFrame.LayoutOrder      = 4
 Instance.new("UICorner", ctlFrame).CornerRadius = UDim.new(0, 8)
 
-local btnPlay = Instance.new("TextButton", ctlFrame)
-btnPlay.Size             = UDim2.new(0.31, 0, 0.8, 0)
-btnPlay.Position         = UDim2.new(0.02, 0, 0.1, 0)
-btnPlay.BackgroundColor3 = Color3.fromRGB(50, 25, 110)
-btnPlay.Text             = "▶ PHÁT"
-btnPlay.TextColor3       = Color3.fromRGB(220, 180, 255)
-btnPlay.Font             = Enum.Font.GothamBold
-btnPlay.TextSize         = 11
-Instance.new("UICorner", btnPlay).CornerRadius = UDim.new(0, 6)
+local btnDirectPlay = Instance.new("TextButton", ctlFrame)
+btnDirectPlay.Size             = UDim2.new(0.48, 0, 0.8, 0)
+btnDirectPlay.Position         = UDim2.new(0.02, 0, 0.1, 0)
+btnDirectPlay.BackgroundColor3 = Color3.fromRGB(45, 30, 75)
+btnDirectPlay.Text             = "▶ Tự Đánh Bằng Phím"
+btnDirectPlay.TextColor3       = Color3.fromRGB(200, 180, 240)
+btnDirectPlay.Font             = Enum.Font.GothamBold
+btnDirectPlay.TextSize         = 10.5
+Instance.new("UICorner", btnDirectPlay).CornerRadius = UDim.new(0, 6)
 
-local btnPause = Instance.new("TextButton", ctlFrame)
-btnPause.Size            = UDim2.new(0.31, 0, 0.8, 0)
-btnPause.Position        = UDim2.new(0.35, 0, 0.1, 0)
-btnPause.BackgroundColor3 = Color3.fromRGB(35, 30, 55)
-btnPause.Text            = "⏸ DỪNG"
-btnPause.TextColor3      = Color3.fromRGB(180, 170, 210)
-btnPause.Font            = Enum.Font.GothamBold
-btnPause.TextSize        = 11
-Instance.new("UICorner", btnPause).CornerRadius = UDim.new(0, 6)
+local btnDirectStop = Instance.new("TextButton", ctlFrame)
+btnDirectStop.Size             = UDim2.new(0.48, 0, 0.8, 0)
+btnDirectStop.Position         = UDim2.new(0.50, 0, 0.1, 0)
+btnDirectStop.BackgroundColor3 = Color3.fromRGB(75, 20, 35)
+btnDirectStop.Text             = "⏹ Dừng Đánh Phím"
+btnDirectStop.TextColor3       = Color3.fromRGB(255, 170, 180)
+btnDirectStop.Font             = Enum.Font.GothamBold
+btnDirectStop.TextSize         = 10.5
+Instance.new("UICorner", btnDirectStop).CornerRadius = UDim.new(0, 6)
 
-local btnStop = Instance.new("TextButton", ctlFrame)
-btnStop.Size             = UDim2.new(0.30, 0, 0.8, 0)
-btnStop.Position         = UDim2.new(0.68, 0, 0.1, 0)
-btnStop.BackgroundColor3 = Color3.fromRGB(80, 20, 35)
-btnStop.Text             = "⏹ HỦY"
-btnStop.TextColor3       = Color3.fromRGB(255, 170, 180)
-btnStop.Font             = Enum.Font.GothamBold
-btnStop.TextSize         = 11
-Instance.new("UICorner", btnStop).CornerRadius = UDim.new(0, 6)
-
--- 3. HỘP CÔNG CỤ: LỆNH GAME >AUTO & NÚT COPY SHEET
-local toolFrame = Instance.new("Frame", Scroll)
-toolFrame.Size             = UDim2.new(1, 0, 0, 36)
-toolFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-toolFrame.LayoutOrder      = 3
-Instance.new("UICorner", toolFrame).CornerRadius = UDim.new(0, 8)
-
-local btnCopy = Instance.new("TextButton", toolFrame)
-btnCopy.Size             = UDim2.new(0.48, 0, 0.8, 0)
-btnCopy.Position         = UDim2.new(0.02, 0, 0.1, 0)
-btnCopy.BackgroundColor3 = Color3.fromRGB(30, 45, 80)
-btnCopy.Text             = "📋 Chép Sheet"
-btnCopy.TextColor3       = Color3.fromRGB(180, 215, 255)
-btnCopy.Font             = Enum.Font.GothamBold
-btnCopy.TextSize         = 11
-Instance.new("UICorner", btnCopy).CornerRadius = UDim.new(0, 6)
-
-local btnChatAuto = Instance.new("TextButton", toolFrame)
-btnChatAuto.Size             = UDim2.new(0.48, 0, 0.8, 0)
-btnChatAuto.Position         = UDim2.new(0.50, 0, 0.1, 0)
-btnChatAuto.BackgroundColor3 = Color3.fromRGB(45, 25, 75)
-btnChatAuto.Text             = "💬 Gửi Lệnh >auto"
-btnChatAuto.TextColor3       = Color3.fromRGB(220, 180, 255)
-btnChatAuto.Font             = Enum.Font.GothamBold
-btnChatAuto.TextSize         = 11
-Instance.new("UICorner", btnChatAuto).CornerRadius = UDim.new(0, 6)
-
-btnCopy.MouseButton1Click:Connect(function()
-    if setclipboard then
-        setclipboard(Playback.CustomSheet)
-        btnCopy.Text = "✅ Đã Chép!"
-        task.delay(1.5, function() btnCopy.Text = "📋 Chép Sheet" end)
-    else
-        btnCopy.Text = "❌ Không hỗ trợ"
-    end
+btnDirectPlay.MouseButton1Click:Connect(function()
+    playDirectMusic(Playback.CustomSheet, Config.BPM)
 end)
 
-btnChatAuto.MouseButton1Click:Connect(function()
-    sendChatAuto(Playback.CustomSheet)
-    btnChatAuto.Text = "✅ Đã Gửi!"
-    task.delay(1.5, function() btnChatAuto.Text = "💬 Gửi Lệnh >auto" end)
+btnDirectStop.MouseButton1Click:Connect(function()
+    stopDirectMusic()
 end)
 
--- 4. ĐIỀU CHỈNH TỐC ĐỘ (BPM)
+-- 5. ĐIỀU CHỈNH TỐC ĐỘ (BPM)
 local bpmFrame = Instance.new("Frame", Scroll)
 bpmFrame.Size             = UDim2.new(1, 0, 0, 36)
 bpmFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-bpmFrame.LayoutOrder      = 4
+bpmFrame.LayoutOrder      = 5
 Instance.new("UICorner", bpmFrame).CornerRadius = UDim.new(0, 8)
 
 local bpmLabel = Instance.new("TextLabel", bpmFrame)
@@ -623,23 +648,23 @@ btnMinus.MouseButton1Click:Connect(function()
     bpmLabel.Text = "Tốc độ: " .. Config.BPM .. " BPM"
 end)
 btnPlus.MouseButton1Click:Connect(function()
-    Config.BPM = math.min(200, Config.BPM + 10)
+    Config.BPM = math.min(180, Config.BPM + 10)
     bpmLabel.Text = "Tốc độ: " .. Config.BPM .. " BPM"
 end)
 
--- 5. Ô NHẬP SHEET NHẠC TÙY Ý
+-- 6. Ô NHẬP SHEET NHẠC TÙY Ý
 local sheetTitle = Instance.new("TextLabel", Scroll)
 sheetTitle.Size               = UDim2.new(1, 0, 0, 18)
 sheetTitle.BackgroundTransparency = 1
-sheetTitle.Text               = "📝 Dán Sheet Nhạc Tùy Ý (Virtual Piano):"
+sheetTitle.Text               = "📝 Bản Sheet Hiện Tại:"
 sheetTitle.TextColor3         = Color3.fromRGB(170, 150, 210)
 sheetTitle.Font               = Enum.Font.GothamSemibold
 sheetTitle.TextSize           = 11
 sheetTitle.TextXAlignment     = Enum.TextXAlignment.Left
-sheetTitle.LayoutOrder        = 5
+sheetTitle.LayoutOrder        = 6
 
 local sheetBox = Instance.new("TextBox", Scroll)
-sheetBox.Size                 = UDim2.new(1, 0, 0, 75)
+sheetBox.Size                 = UDim2.new(1, 0, 0, 70)
 sheetBox.BackgroundColor3     = Color3.fromRGB(16, 16, 26)
 sheetBox.Text                 = Playback.CustomSheet
 sheetBox.TextColor3           = Color3.fromRGB(220, 215, 240)
@@ -650,7 +675,7 @@ sheetBox.TextYAlignment       = Enum.TextYAlignment.Top
 sheetBox.ClearTextOnFocus     = false
 sheetBox.TextWrapped          = true
 sheetBox.MultiLine            = true
-sheetBox.LayoutOrder          = 6
+sheetBox.LayoutOrder          = 7
 Instance.new("UICorner", sheetBox).CornerRadius = UDim.new(0, 8)
 local sBox = Instance.new("UIStroke", sheetBox)
 sBox.Color = Color3.fromRGB(70, 45, 130); sBox.Thickness = 1
@@ -659,27 +684,7 @@ sheetBox:GetPropertyChangedSignal("Text"):Connect(function()
     Playback.CustomSheet = sheetBox.Text
 end)
 
-btnPlay.MouseButton1Click:Connect(function()
-    if Playback.IsPaused then
-        Playback.IsPaused = false
-    else
-        playMusic(Playback.CustomSheet, Config.BPM)
-    end
-end)
-
-btnPause.MouseButton1Click:Connect(function()
-    if Playback.IsPlaying then
-        Playback.IsPaused = not Playback.IsPaused
-        btnPause.Text = Playback.IsPaused and "▶ TIẾP" or "⏸ DỪNG"
-    end
-end)
-
-btnStop.MouseButton1Click:Connect(function()
-    stopMusic()
-    btnPause.Text = "⏸ DỪNG"
-end)
-
--- 6. THANH TÌM KIẾM BÀI HÁT
+-- 7. THANH TÌM KIẾM BÀI HÁT
 local searchBox = Instance.new("TextBox", Scroll)
 searchBox.Size                 = UDim2.new(1, 0, 0, 34)
 searchBox.BackgroundColor3     = Color3.fromRGB(22, 20, 35)
@@ -689,7 +694,7 @@ searchBox.Text                 = ""
 searchBox.TextColor3           = Color3.fromRGB(230, 220, 255)
 searchBox.Font                 = Enum.Font.Gotham
 searchBox.TextSize             = 11.5
-searchBox.LayoutOrder          = 7
+searchBox.LayoutOrder          = 8
 Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 8)
 local sSearch = Instance.new("UIStroke", searchBox)
 sSearch.Color = Color3.fromRGB(90, 50, 170); sSearch.Thickness = 1
@@ -697,14 +702,14 @@ sSearch.Color = Color3.fromRGB(90, 50, 170); sSearch.Thickness = 1
 local libTitle = Instance.new("TextLabel", Scroll)
 libTitle.Size               = UDim2.new(1, 0, 0, 18)
 libTitle.BackgroundTransparency = 1
-libTitle.Text               = "🎵 Danh Sách Nhạc Hot (Chạm Để Đánh):"
+libTitle.Text               = "🎵 Danh Sách Nhạc Hot (Chạm Để Chọn):"
 libTitle.TextColor3         = Color3.fromRGB(170, 150, 210)
 libTitle.Font               = Enum.Font.GothamSemibold
 libTitle.TextSize           = 11
 libTitle.TextXAlignment     = Enum.TextXAlignment.Left
-libTitle.LayoutOrder        = 8
+libTitle.LayoutOrder        = 9
 
--- 7. TẠO DANH SÁCH BÀI HÁT
+-- 8. TẠO DANH SÁCH BÀI HÁT
 local songButtons = {}
 
 for idx, song in ipairs(SongLibrary) do
@@ -716,7 +721,7 @@ for idx, song in ipairs(SongLibrary) do
     sBtn.Font             = Enum.Font.Gotham
     sBtn.TextSize         = 10.5
     sBtn.TextXAlignment   = Enum.TextXAlignment.Left
-    sBtn.LayoutOrder      = 8 + idx
+    sBtn.LayoutOrder      = 9 + idx
     Instance.new("UICorner", sBtn).CornerRadius = UDim.new(0, 6)
 
     sBtn.MouseButton1Click:Connect(function()
@@ -724,7 +729,12 @@ for idx, song in ipairs(SongLibrary) do
         sheetBox.Text        = song.Sheet
         Config.BPM           = song.BPM
         bpmLabel.Text        = "Tốc độ: " .. Config.BPM .. " BPM"
-        playMusic(song.Sheet, song.BPM)
+        
+        -- Tự động gửi lệnh >auto hoặc thử dán vào game
+        tryPasteToGameGui(song.Sheet)
+        sendChatCommand(">auto " .. song.Sheet)
+        btnAutoChat.Text = "✅ Đang Phát Qua >auto!"
+        task.delay(2, function() btnAutoChat.Text = "🚀 Phát Bằng Lệnh >auto" end)
     end)
 
     table.insert(songButtons, {Button = sBtn, Name = song.Name:lower()})
@@ -794,4 +804,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] Visual Piano Hub 🎹 (Master Acoustic Edition) Loaded!")
+print("[VOSS] Visual Piano Hub 🎹 (Ultimate Fix Edition) Loaded!")
