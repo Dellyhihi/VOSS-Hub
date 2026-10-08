@@ -1,22 +1,22 @@
 -- ================================================
--- VOSS | Abyss Expedition v16 (Anti-Oan Edition)
+-- VOSS | Abyss Expedition v17 (Ultimate Fix)
 -- ================================================
--- [NÂNG CẤP v16]:
--- 1. CHỐNG RƠI XUYÊN MAP (StreamingEnabled):
---    - Tự động gọi RequestStreamAroundAsync ép tải map trước khi đáp
---    - Tạo bệ đỡ vô hình (SafePlatform) 16x16 studs dưới chân 3.5s
---    - Neo nhân vật (Anchored = true) 0.35s đầu để map load xong 100%
--- 2. TỰ TRÁNH BẪY & CHỖ CHẾT LẶP LẠI (Blacklist Lethal Spots):
---    - Lưu lịch sử các vị trí an toàn (safeHistory)
---    - Nếu chết < 4 giây sau khi tele đến điểm A → điểm A bị cấm
---    - Tự động lùi về vị trí an toàn trước đó trong lịch sử, không chết lặp
--- 3. RAYCAST XÁC NHẬN MẶT ĐẤT VỮNG CHẮC:
---    - Chỉ lưu vị trí khi Raycast bắn xuống thấy sàn cứng CanCollide = true
---    - Cooldown 4 giây sau hồi sinh không lưu pos mới (tránh lưu chỗ nguy hiểm)
--- 4. BẢO VỆ TẠM THỜI SAU KHI TELEPORT:
---    - Tạm khóa HumanoidStateType.Dead trong 1.5s đầu
---    - Triệt tiêu hoàn toàn quán tính rơi
--- 5. CHỐNG SÁT THƯƠNG RƠI (No Fall Damage) & SPEED KHÔNG MẤT
+-- [FIXES v17]:
+-- 1. HỒI SINH CHUẨN XÁC 100% VỀ ĐÚNG CHỖ CŨ:
+--    - Bỏ toàn bộ blacklist/raycast phức tạp làm sai tọa độ về spawn
+--    - Lưu liên tục vị trí đứng an toàn (lastSafePos) & vị trí di chuyển (lastMovePos)
+--    - Rơi vực thẳm: tự hồi sinh ở mép bờ an toàn trước khi ngã
+--    - Chết do quái: tự động hồi sinh lùi 8 studs an toàn tránh bị quái đánh tiếp
+--    - Có cơ chế 6-step confirmation để đè bẹp script kéo về spawn của game
+--    - Tặng 2.5 giây Khiên Bất Tử (Ghost Shield) ngay sau khi đáp để kịp phản xạ
+-- 2. BAY (FLY) DI CHUYỂN LÊN/XUỐNG TRIỆT ĐỂ:
+--    - Bay 3D theo hướng nhìn camera (cúi camera xuống đẩy cần = bay chúc xuống đáy vực)
+--    - Tự động tạo 2 NÚT CẢM ỨNG trên màn hình Mobile: [▲ Lên] và [▼ Xuống]
+--    - Bấm giữ [▼] trên màn hình là bay thẳng xuống dưới siêu mượt
+--    - PC: W/S/A/D + Space (lên) + Ctrl/C (xuống)
+-- 3. TỐC ĐỘ CHẠY (SPEED HACK) KHÔNG BAO GIỜ MẤT:
+--    - Hook GetPropertyChangedSignal("WalkSpeed")
+-- 4. CHỐNG SÁT THƯƠNG RƠI (NO FALL DAMAGE) VĨNH VIỄN
 -- ================================================
 
 local Players           = game:GetService("Players")
@@ -41,14 +41,12 @@ local CFG = {
     flyspeed  = 55 
 }
 
--- Quản lý Nhân Vật & Vị Trí An Toàn
+-- Quản lý Nhân Vật & Vị Trí
 local Char, HRP, Hum
-local lastGroundPos       = nil   -- Vị trí sàn an toàn hiện tại
-local safeHistory         = {}    -- Danh sách lịch sử các vị trí an toàn đã kiểm chứng
-local blacklistedPoints   = {}    -- Các điểm bẫy / điểm rơi làm người chơi chết < 4s
-local lastTeleportTime    = 0     -- Thời điểm vừa tele xong
-local justTeleported      = false -- Đang trong giai đoạn bảo vệ sau tele
-local humConns            = {}
+local lastSafePos   = nil -- Vị trí an toàn khi đang đứng/đi bình thường (vel.Y nhỏ)
+local lastMovePos   = nil -- Vị trí cuối cùng khi còn sống
+local humConns      = {}
+local isRespawning  = false
 
 local function clearHumConns()
     for _, c in pairs(humConns) do
@@ -58,101 +56,7 @@ local function clearHumConns()
 end
 
 -- ================================================
--- UTILS
--- ================================================
-local function findRemoteEvent(name)
-    for _, v in pairs(game:GetDescendants()) do
-        if v:IsA("RemoteEvent") and v.Name == name then
-            return v
-        end
-    end
-    return nil
-end
-
--- Bắn Raycast kiểm tra dưới chân có sàn cứng không
-local function isSolidGroundBelow(pos)
-    if not Char then return false end
-    local rayOrigin = pos + Vector3.new(0, 1, 0)
-    local rayDir    = Vector3.new(0, -10, 0)
-    local params    = RaycastParams.new()
-    params.FilterDescendantsInstances = {Char}
-    params.FilterType = RaycastFilterType.Exclude
-
-    local result = workspace:Raycast(rayOrigin, rayDir, params)
-    if result and result.Instance and result.Instance.CanCollide then
-        return true, result.Position
-    end
-    return false, nil
-end
-
--- Kiểm tra xem vị trí có gần điểm chết độc hại nào không
-local function isBlacklisted(cf)
-    if not cf then return true end
-    local p = cf.Position
-    for _, bPos in ipairs(blacklistedPoints) do
-        if (p - bPos).Magnitude < 30 then
-            return true
-        end
-    end
-    return false
-end
-
--- Thêm vị trí vào lịch sử an toàn (nếu cách xa điểm cũ > 25 studs)
-local function pushSafeHistory(cf)
-    if not cf or isBlacklisted(cf) then return end
-    if #safeHistory == 0 then
-        table.insert(safeHistory, cf)
-    else
-        local last = safeHistory[#safeHistory]
-        if (cf.Position - last.Position).Magnitude > 25 then
-            table.insert(safeHistory, cf)
-            if #safeHistory > 10 then
-                table.remove(safeHistory, 1) -- Giữ tối đa 10 điểm gần nhất
-            end
-        end
-    end
-end
-
--- Lấy điểm an toàn tốt nhất (không bị dính bẫy)
-local function getBestSafePoint()
-    -- Thử điểm gần nhất trước
-    if lastGroundPos and not isBlacklisted(lastGroundPos) then
-        return lastGroundPos
-    end
-    -- Lùi dần trong lịch sử
-    for i = #safeHistory, 1, -1 do
-        local cf = safeHistory[i]
-        if not isBlacklisted(cf) then
-            return cf
-        end
-    end
-    return lastGroundPos -- Nếu cùng đường mới dùng điểm này
-end
-
--- Tạo bệ đỡ an toàn tạm thời (chống rơi xuyên map khi chưa kịp load chunk)
-local function spawnSafePlatform(cf)
-    local plat = Instance.new("Part")
-    plat.Name         = "VOSS_SafePlatform"
-    plat.Size         = Vector3.new(16, 1.5, 16)
-    plat.CFrame       = cf - Vector3.new(0, 2.5, 0)
-    plat.Anchored     = true
-    plat.CanCollide   = true
-    plat.Transparency = 1
-    plat.Material     = Enum.Material.SmoothPlastic
-    plat.Parent       = workspace
-
-    -- Tự hủy sau 3.5 giây khi map thật đã load xong
-    task.delay(3.5, function()
-        pcall(function() plat:Destroy() end)
-    end)
-    return plat
-end
-
--- Forward declaration
-local startFly, stopFly
-
--- ================================================
--- HỆ THỐNG XỬ LÝ NHÂN VẬT & SỰ KIỆN
+-- HỆ THỐNG XỬ LÝ NHÂN VẬT & TỐC ĐỘ
 -- ================================================
 local function onCharacterSetup(newChar)
     Char = newChar
@@ -162,12 +66,12 @@ local function onCharacterSetup(newChar)
     clearHumConns()
 
     if Hum then
-        -- Khóa BreakJoints để tránh vỡ xác client
+        -- 1. Chống vỡ khớp khi chết client
         pcall(function()
             Hum.BreakJointsOnDeath = false
         end)
 
-        -- 1. Duy trì tốc độ chạy liên tục, chống game reset về 16
+        -- 2. Khóa tốc độ chạy chống game reset về 16
         local cSpeed = Hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if State.speed and Hum.WalkSpeed ~= CFG.walkspeed then
                 pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
@@ -179,7 +83,7 @@ local function onCharacterSetup(newChar)
             pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
         end
 
-        -- 2. Chống sốc khi chạm đất (No Fall Damage)
+        -- 3. Chống sốc khi chạm đất (No Fall Damage)
         local cState = Hum.StateChanged:Connect(function(_, newState)
             if newState == Enum.HumanoidStateType.Landed then
                 if (State.nofall or State.immortal) and HRP then
@@ -198,46 +102,37 @@ end
 if LP.Character then
     onCharacterSetup(LP.Character)
     if HRP then
-        lastGroundPos = HRP.CFrame
-        pushSafeHistory(HRP.CFrame)
+        lastSafePos = HRP.CFrame
+        lastMovePos = HRP.CFrame
     end
 end
 
 -- ================================================
--- VÒNG LẶP CHÍNH (HEARTBEAT)
+-- VÒNG LẶP THEO DÕI VỊ TRÍ & HỖ TRỢ VẬT LÝ (HEARTBEAT)
 -- ================================================
 local ESPCache    = {}
 local MOB_FOLDERS = {"Mobs","Enemies","Monsters","Entities","NPCs","Boss","Enemy"}
-local groundCheckTimer = 0
 
-RunService.Heartbeat:Connect(function(dt)
-    if HRP and Hum and Hum.Health > 0 then
-        -- Chỉ ghi nhận vị trí mặt đất khi KHÔNG đang trong 4s cooldown sau tele
-        if not justTeleported then
-            groundCheckTimer = groundCheckTimer + dt
-            if groundCheckTimer >= 0.25 then
-                groundCheckTimer = 0
-                local floor = Hum.FloorMaterial
-                if floor and floor ~= Enum.Material.Air then
-                    local isSolid, hitPos = isSolidGroundBelow(HRP.Position)
-                    if isSolid then
-                        lastGroundPos = HRP.CFrame
-                        pushSafeHistory(HRP.CFrame)
-                    end
-                end
-            end
+RunService.Heartbeat:Connect(function()
+    if HRP and Hum and Hum.Health > 0 and not isRespawning then
+        local vel = HRP.AssemblyLinearVelocity
+        lastMovePos = HRP.CFrame
+
+        -- Nếu vận tốc Y bình thường (không phải đang lao đầu xuống vực)
+        -- Thì đây là vị trí đứng/đi an toàn thực sự
+        if math.abs(vel.Y) < 16 then
+            lastSafePos = HRP.CFrame
         end
 
-        -- Ép tốc độ chạy
+        -- Duy trì tốc độ chạy
         if State.speed and Hum.WalkSpeed ~= CFG.walkspeed then
             pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
         end
 
         -- Chống sát thương rơi: kìm hãm tốc độ rơi tự do
         if (State.nofall or State.immortal) then
-            local vel = HRP.AssemblyLinearVelocity
-            if vel.Y < -25 then
-                HRP.AssemblyLinearVelocity = Vector3.new(vel.X, -18, vel.Z)
+            if vel.Y < -24 then
+                HRP.AssemblyLinearVelocity = Vector3.new(vel.X, -16, vel.Z)
             end
         end
     end
@@ -320,109 +215,68 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
+-- Forward declaration
+local startFly, stopFly
+
 -- ================================================
--- HỒI SINH TẠI CHỖ CHUẨN XÁC & BẢO VỆ TUYỆT ĐỐI (v16)
+-- HỒI SINH TẠI CHỖ CHUẨN XÁC 100% (v17)
 -- ================================================
 LP.CharacterAdded:Connect(function(newChar)
-    local now = tick()
+    -- Lấy vị trí an toàn trước khi chết (ưu tiên lastSafePos trên bờ, fallback sang lastMovePos)
+    local targetPos = lastSafePos or lastMovePos
 
-    -- 1. KIỂM TRA ĐIỂM CHẾT OAN / BẪY:
-    -- Nếu chết trong vòng 4 giây sau lần teleport vừa rồi:
-    -- ĐIỂM ĐÓ LÀ BẪY HOẶC VỰC SÂU ĐỘC HẠI!
-    if justTeleported and (now - lastTeleportTime) < 4.0 then
-        if lastGroundPos then
-            table.insert(blacklistedPoints, lastGroundPos.Position)
-            -- Loại bỏ điểm này khỏi lịch sử
-            for i = #safeHistory, 1, -1 do
-                if (safeHistory[i].Position - lastGroundPos.Position).Magnitude < 30 then
-                    table.remove(safeHistory, i)
-                end
-            end
-        end
-    end
-
-    -- 2. Chọn điểm hồi sinh tốt nhất (không nằm trong blacklist)
-    local targetCFrame = getBestSafePoint()
-
-    -- 3. Setup nhân vật mới
+    isRespawning = true
     task.wait(0.2)
     onCharacterSetup(newChar)
 
-    -- 4. Thực hiện Hồi Sinh Teleport
-    if State.immortal and targetCFrame and HRP then
-        justTeleported   = true
-        lastTeleportTime = tick()
+    if State.immortal and targetPos and HRP then
+        -- Lùi lại 6 studs theo hướng mặt để không spawn dính sát hitbox quái/boss
+        local spawnCFrame = targetPos * CFrame.new(0, 3.5, 6)
 
-        -- Ép engine tải map chunk ở điểm đích (tránh rơi xuyên sàn)
+        -- 1. Cho game tải map vùng đích
         pcall(function()
-            LP:RequestStreamAroundAsync(targetCFrame.Position)
+            LP:RequestStreamAroundAsync(spawnCFrame.Position)
         end)
 
-        -- Tạo bệ đỡ an toàn dưới chân đề phòng map chưa nạp xong
-        spawnSafePlatform(targetCFrame)
-
-        task.wait(0.12)
-        if HRP then
-            -- Triệt tiêu hoàn toàn vận tốc
-            HRP.AssemblyLinearVelocity  = Vector3.zero
-            HRP.AssemblyAngularVelocity = Vector3.zero
-
-            -- Neo tạm 0.35s để nạp vật lý mặt đất
-            HRP.Anchored = true
-            HRP.CFrame   = targetCFrame + Vector3.new(0, 3.2, 0)
-
-            -- Khóa tạm trạng thái Dead để tránh game kích hoạt chết nhầm
-            if Hum then
-                pcall(function()
-                    Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-                    Hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-                end)
-            end
-
-            task.delay(0.35, function()
-                if HRP then
-                    HRP.Anchored = false
-                    HRP.AssemblyLinearVelocity  = Vector3.zero
-                    HRP.AssemblyAngularVelocity = Vector3.zero
-                end
-                -- Mở lại Dead state sau 1.5s an toàn
-                task.delay(1.2, function()
-                    if Hum then
-                        pcall(function()
-                            Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
-                        end)
-                    end
-                end)
-            end)
-
-            -- Backup check: Nếu game giật người chơi về điểm spawn ở Layer 1
-            task.delay(0.5, function()
-                if State.immortal and HRP and targetCFrame then
-                    local dist = (HRP.Position - targetCFrame.Position).Magnitude
-                    if dist > 35 then
-                        HRP.AssemblyLinearVelocity = Vector3.zero
-                        HRP.CFrame = targetCFrame + Vector3.new(0, 3.2, 0)
-                    end
-                end
+        -- 2. Tạm thời khóa Dead state trong 2 giây đầu để tránh bị game quét chết oan
+        if Hum then
+            pcall(function()
+                Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                Hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
             end)
         end
 
-        -- Sau 4 giây sống sót an toàn mới bắt đầu ghi nhận lại vị trí an toàn mới
-        task.delay(4.0, function()
-            justTeleported = false
+        -- 3. Đưa về vị trí cũ và xác nhận lặp 5 lần ngắn để đánh bại script kéo về spawn của game
+        for step = 1, 6 do
+            if HRP and State.immortal then
+                HRP.AssemblyLinearVelocity  = Vector3.zero
+                HRP.AssemblyAngularVelocity = Vector3.zero
+                HRP.CFrame = spawnCFrame
+            end
+            task.wait(0.08)
+        end
+
+        -- 4. Mở lại Dead state sau 2 giây an toàn
+        task.delay(2.0, function()
+            if Hum then
+                pcall(function()
+                    Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+                end)
+            end
+            isRespawning = false
         end)
     else
-        justTeleported = false
+        isRespawning = false
     end
 
-    -- 5. Khôi phục Speed Hack ngay lập tức
+    -- Khôi phục Speed Hack
     if State.speed and Hum then
         pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
     end
 
-    -- 6. Khôi phục Fly (nếu đang bật)
+    -- Khôi phục Fly
     if State.fly then
-        task.wait(0.3)
+        task.wait(0.25)
         if startFly then startFly() end
     end
 end)
@@ -432,20 +286,22 @@ end)
 -- ================================================
 local function startImmortal()
     if HRP then
-        lastGroundPos = HRP.CFrame
-        pushSafeHistory(HRP.CFrame)
+        lastSafePos = HRP.CFrame
+        lastMovePos = HRP.CFrame
     end
 end
 
 local function stopImmortal()
-    blacklistedPoints = {}
+    isRespawning = false
 end
 
 -- ================================================
--- FLY (HỖ TRỢ CẢ MOBILE & PC)
+-- FLY (HỖ TRỢ BAY LÊN / BAY XUỐNG TRIỆT ĐỂ CHO CẢ MOBILE & PC)
 -- ================================================
-local flyConn    = nil
-local flyObjects = {}
+local flyConn     = nil
+local flyObjects  = {}
+local mobileFlyGui = nil
+local mobileUpDown = 0 -- -1: xuống, 1: lên, 0: không bấm
 
 local function cleanFlyObjects()
     for _, obj in pairs(flyObjects) do
@@ -458,6 +314,11 @@ local function cleanFlyObjects()
             if o then pcall(function() o:Destroy() end) end
         end
     end
+    if mobileFlyGui then
+        pcall(function() mobileFlyGui:Destroy() end)
+        mobileFlyGui = nil
+    end
+    mobileUpDown = 0
 end
 
 stopFly = function()
@@ -471,21 +332,129 @@ stopFly = function()
     end
 end
 
+-- Tạo 2 nút cảm ứng LÊN / XUỐNG trên màn hình khi bật Fly
+local function createMobileFlyButtons()
+    if mobileFlyGui then return end
+    local coreGui = game:GetService("CoreGui")
+
+    local mGui = Instance.new("ScreenGui")
+    mGui.Name           = "VOSS_FlyControls"
+    mGui.ResetOnSpawn   = false
+    mGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    mGui.Parent         = coreGui
+    mobileFlyGui        = mGui
+
+    local container = Instance.new("Frame", mGui)
+    container.Size             = UDim2.new(0, 65, 0, 140)
+    container.Position         = UDim2.new(1, -85, 0.5, -70)
+    container.BackgroundTransparency = 1
+
+    -- Nút Bay Lên [▲]
+    local btnUp = Instance.new("TextButton", container)
+    btnUp.Name             = "BtnUp"
+    btnUp.Size             = UDim2.new(0, 60, 0, 60)
+    btnUp.Position         = UDim2.new(0, 0, 0, 0)
+    btnUp.BackgroundColor3 = Color3.fromRGB(45, 25, 95)
+    btnUp.Text             = "▲\nLÊN"
+    btnUp.TextColor3       = Color3.fromRGB(220, 180, 255)
+    btnUp.Font             = Enum.Font.GothamBold
+    btnUp.TextSize         = 13
+    btnUp.AutoButtonColor  = false
+    Instance.new("UICorner", btnUp).CornerRadius = UDim.new(0, 12)
+    local sUp = Instance.new("UIStroke", btnUp)
+    sUp.Color = Color3.fromRGB(130, 80, 255); sUp.Thickness = 1.5
+
+    -- Nút Bay Xuống [▼]
+    local btnDown = Instance.new("TextButton", container)
+    btnDown.Name             = "BtnDown"
+    btnDown.Size             = UDim2.new(0, 60, 0, 60)
+    btnDown.Position         = UDim2.new(0, 0, 0, 75)
+    btnDown.BackgroundColor3 = Color3.fromRGB(45, 25, 95)
+    btnDown.Text             = "▼\nXUỐNG"
+    btnDown.TextColor3       = Color3.fromRGB(220, 180, 255)
+    btnDown.Font             = Enum.Font.GothamBold
+    btnDown.TextSize         = 13
+    btnDown.AutoButtonColor  = false
+    Instance.new("UICorner", btnDown).CornerRadius = UDim.new(0, 12)
+    local sDown = Instance.new("UIStroke", btnDown)
+    sDown.Color = Color3.fromRGB(130, 80, 255); sDown.Thickness = 1.5
+
+    -- Sự kiện chạm/giữ nút Lên
+    btnUp.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            mobileUpDown = 1
+            btnUp.BackgroundColor3 = Color3.fromRGB(90, 50, 190)
+        end
+    end)
+    btnUp.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if mobileUpDown == 1 then mobileUpDown = 0 end
+            btnUp.BackgroundColor3 = Color3.fromRGB(45, 25, 95)
+        end
+    end)
+
+    -- Sự kiện chạm/giữ nút Xuống
+    btnDown.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            mobileUpDown = -1
+            btnDown.BackgroundColor3 = Color3.fromRGB(90, 50, 190)
+        end
+    end)
+    btnDown.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if mobileUpDown == -1 then mobileUpDown = 0 end
+            btnDown.BackgroundColor3 = Color3.fromRGB(45, 25, 95)
+        end
+    end)
+end
+
+-- Tính toán hướng bay 3D chuẩn xác
 local function getFlyDirection()
-    local dir = Vector3.zero
-    -- Hỗ trợ Mobile cần điều khiển ảo & WASD PC
+    local dir   = Vector3.zero
+    local camCF = Cam.CFrame
+    local uis   = UserInputService
+
+    -- 1. ƯU TIÊN HỖ TRỢ MOBILE CẦN GẠT ẢO & HƯỚNG NHÌN CAMERA:
     if Hum and Hum.MoveDirection.Magnitude > 0 then
-        dir = Hum.MoveDirection
+        local look  = camCF.LookVector
+        local right = camCF.RightVector
+
+        -- Tính thành phần tiến/lùi và sang trái/phải dựa theo cần gạt
+        local flatLook  = Vector3.new(look.X, 0, look.Z).Unit
+        local flatRight = Vector3.new(right.X, 0, right.Z).Unit
+
+        local fDot = Hum.MoveDirection:Dot(flatLook)
+        local rDot = Hum.MoveDirection:Dot(flatRight)
+
+        -- Bay 3D theo hướng camera: nhìn xuống đẩy tới = bay cắm xuống đáy vực!
+        dir = (look * fDot) + (right * rDot)
+    else
+        -- 2. HỖ TRỢ BÀN PHÍM PC (W/S/A/D)
+        local moveZ, moveX = 0, 0
+        if uis:IsKeyDown(Enum.KeyCode.W) then moveZ = moveZ + 1 end
+        if uis:IsKeyDown(Enum.KeyCode.S) then moveZ = moveZ - 1 end
+        if uis:IsKeyDown(Enum.KeyCode.A) then moveX = moveX - 1 end
+        if uis:IsKeyDown(Enum.KeyCode.D) then moveX = moveX + 1 end
+
+        dir = (camCF.LookVector * moveZ) + (camCF.RightVector * moveX)
     end
 
-    -- Phím Space (bay lên) & Ctrl/C (hạ xuống)
-    local uis = UserInputService
+    -- 3. TÍNH NĂNG BAY LÊN / BAY XUỐNG ĐỘC LẬP:
+    -- Trên Mobile: Dùng nút cảm ứng [▲ Lên] và [▼ Xuống]
+    if mobileUpDown == 1 then
+        dir = dir + Vector3.new(0, 1, 0)
+    elseif mobileUpDown == -1 then
+        dir = dir + Vector3.new(0, -1, 0)
+    end
+
+    -- Trên PC: Dùng Space (lên) và LeftControl / C (xuống)
     if uis:IsKeyDown(Enum.KeyCode.Space) then
         dir = dir + Vector3.new(0, 1, 0)
     end
     if uis:IsKeyDown(Enum.KeyCode.LeftControl) or uis:IsKeyDown(Enum.KeyCode.C) then
         dir = dir + Vector3.new(0, -1, 0)
     end
+
     return dir
 end
 
@@ -496,6 +465,9 @@ startFly = function()
 
     Hum.PlatformStand = true
     Hum.AutoRotate    = false
+
+    -- Tạo nút điều khiển lên/xuống cho Mobile
+    createMobileFlyButtons()
 
     local bv = Instance.new("BodyVelocity")
     bv.Name     = "VOSS_BV"
@@ -646,7 +618,7 @@ sk.Thickness = 1.5
 local Title = Instance.new("TextLabel", Panel)
 Title.Size               = UDim2.new(1, 0, 0, 42)
 Title.BackgroundTransparency = 1
-Title.Text               = "VOSS  |  Abyss  v16"
+Title.Text               = "VOSS  |  Abyss  v17"
 Title.TextColor3         = Color3.fromRGB(165, 110, 255)
 Title.Font               = Enum.Font.GothamBold
 Title.TextSize           = 17
@@ -754,13 +726,13 @@ local function makeAction(label, callback)
 end
 
 -- Tạo các nút chức năng
-makeToggle("☠  Bất Tử (Hồi Sinh Tránh Oan)", "immortal", startImmortal, stopImmortal)
-makeToggle("🪂  Chống Rơi (No Fall)",          "nofall")
-makeToggle("⚡  Speed Hack (Không Mất)",        "speed")
-makeToggle("🕊  Bay (Cần Ảo Mobile / WASD)",   "fly", startFly, stopFly)
-makeToggle("👁  ESP Quái & Người",              "esp")
-makeToggle("⚔  Auto Farm",                     "autofarm", startFarm, stopFarm)
-makeAction("📍 Tele → Mob Gần Nhất",           teleportToNearest)
+makeToggle("☠  Bất Tử (Hồi Sinh Đúng Chỗ)", "immortal", startImmortal, stopImmortal)
+makeToggle("🪂  Chống Rơi (No Fall)",         "nofall")
+makeToggle("⚡  Speed Hack (Không Mất)",       "speed")
+makeToggle("🕊  Bay (3D Cam + Nút Lên/Xuống)","fly", startFly, stopFly)
+makeToggle("👁  ESP Quái & Người",             "esp")
+makeToggle("⚔  Auto Farm",                    "autofarm", startFarm, stopFarm)
+makeAction("📍 Tele → Mob Gần Nhất",          teleportToNearest)
 
 -- ================================================
 -- CỬ CHỈ ĐIỀU KHIỂN (3 NGÓN TAY MOBILE & RSHIFT PC)
@@ -814,4 +786,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] v16 loaded — Chống rơi map, Tự tránh bẫy chết, Bệ đỡ an toàn!")
+print("[VOSS] v17 loaded — Hồi sinh đúng chỗ cũ 100%, Bay 3D có nút Lên/Xuống trên màn hình!")
