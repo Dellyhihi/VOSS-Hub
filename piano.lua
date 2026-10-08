@@ -1,19 +1,22 @@
 -- ================================================
--- VOSS | Visual Piano Hub 🎹 (Pro Musician Edition)
+-- VOSS | Visual Piano Hub 🎹 (Master Acoustic Edition)
 -- Game: Visual Pianos (PlaceId: 5593470048)
 -- ================================================
--- [NÂNG CẤP ĐỈNH CAO]:
--- 1. BỘ TỰ ĐỘNG CHỈNH CAO ĐỘ (AUTO TRANSPOSE ENGINE):
---    - Tự động dịch chuyển nửa cung (Semitones -12 đến +12)
---    - Mỗi bài nhạc tự động chuyển về đúng tông chuẩn của bài hát
---    - Có nút [-1 Tông] và [+1 Tông] để tự do nâng hạ cao độ theo sở thích
--- 2. TỰ ĐỘNG ĐẠP BÀN ĐẠP NGÂN ÂM (AUTO SUSTAIN PEDAL):
---    - Giữ bàn đạp vang âm giúp giai điệu ngân nga, mượt mà, xóa bỏ tiếng cộc cằn
--- 3. KHO NHẠC SIÊU TO KHỔNG LỒ (20 BÀI FULL ĐIỆP KHÚC):
---    - Nhạc Trung Quốc Hot Douyin (Thời Không Sai Lệch, Đồng Thoại, Phi Điểu Và Ve Sầu,...)
---    - Nhạc Việt Nam 2024 - 2026 (Đừng Làm Trái Tim Anh Đau, Cắt Đôi Nỗi Sầu, Nơi Này Có Anh,...)
---    - Nhạc Quốc Tế Triệu View (APT., Die With A Smile, Golden Hour, Until I Found You,...)
--- 4. FIX TRIỆT ĐỂ LỖI NGỒI ĐÀN & TÌM KIẾM BÀI HÁT TỨC THÌ
+-- [FIX TOÀN DIỆN - KHÔNG CÒN ĐẤM VÀO TAI]:
+-- 1. FIX DỨT ĐIỂM NHỊP ĐIỆU (MELODIC ACOUSTIC ENGINE):
+--    - Bỏ hoàn toàn tốc độ súng liên thanh (150ms) gây chói tai
+--    - Nốt đơn được ngân vang tự nhiên (0.28s - 0.35s)
+--    - Khoảng trắng ' ' nghỉ đúng nhịp phách bản nhạc (0.45s)
+--    - Vạch '|' chuyển câu trữ tình du dương (0.9s)
+--    - Bỏ nút Space gây nhảy nhân vật khỏi ghế
+-- 2. TÍCH HỢP 3 CHẾ ĐỘ PHÁT CỰC TIỆN:
+--    - Mode 1: Tự đánh phím (VirtualInputManager) mượt mà êm ái
+--    - Mode 2: Gửi lệnh >auto vào game (Dùng hệ thống đánh chuẩn của chính game)
+--    - Mode 3: Nút [📋 Copy Sheet] 1 chạm chép sheet vào bộ nhớ điện thoại
+-- 3. KHO NHẠC HOT FULL BÀI (TRUNG QUỐC DOUYIN & VIỆT NAM 2026):
+--    - Thời Không Sai Lệch, Đồng Thoại, Phi Điểu Và Ve Sầu, Tay Trái Chỉ Trăng
+--    - Đừng Làm Trái Tim Anh Đau, Cắt Đôi Nỗi Sầu, Nơi Này Có Anh, See Tình
+--    - APT. (ROSÉ & Bruno Mars), Die With A Smile, Golden Hour, Until I Found You
 -- ================================================
 
 local Players           = game:GetService("Players")
@@ -25,21 +28,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService      = game:GetService("TweenService")
 local LP                = Players.LocalPlayer
 
--- ================================================
--- BẢNG PHÍM VIRTUAL PIANO CHUẨN 61/88 PHÍM (CHROMATIC)
--- ================================================
-local ChromaticKeys = {
-    "1","!","2","@","3","4","$","5","%","6","^","7","8","*","9","(","0",
-    "q","Q","w","W","e","E","r","R","t","T","y","Y","u","i","I","o","O","p","P",
-    "a","A","s","S","d","D","f","g","G","h","H","j","J","k","K","l","L",
-    "z","Z","x","c","C","v","V","b","B","n","N","m"
-}
-
-local ChromaticIndex = {}
-for i, c in ipairs(ChromaticKeys) do
-    ChromaticIndex[c] = i
-end
-
+-- Bảng ánh xạ phím Virtual Piano chuẩn
 local KeyMap = {
     ["1"] = {Code = Enum.KeyCode.One,   Shift = false},
     ["2"] = {Code = Enum.KeyCode.Two,   Shift = false},
@@ -118,156 +107,112 @@ local KeyMap = {
     ["M"] = {Code = Enum.KeyCode.M, Shift = true},
 }
 
--- Thuật toán dịch chuyển cao độ (Transpose)
-local function transposeChar(c, semitones)
-    if semitones == 0 then return c end
-    local idx = ChromaticIndex[c]
-    if not idx then return c end
-    local newIdx = math.clamp(idx + semitones, 1, #ChromaticKeys)
-    return ChromaticKeys[newIdx]
-end
-
 -- ================================================
--- KHO NHẠC SIÊU HOT HIT TREND 2024 - 2026 (20 BÀI FULL)
+-- KHO NHẠC SIÊU CHUẨN ĐÃ ĐƯỢC CÂN CHỈNH NHẠC LÝ
 -- ================================================
 local SongLibrary = {
     -- NHẠC TRUNG QUỐC / DOUYIN HOT
     {
         Name = "🇨🇳 Thời Không Sai Lệch (错位时空 - Cuo Wei Shi Kong)",
-        BPM  = 92,
-        Transpose = 0,
-        Sheet = "[6e] 0 e r t [4q] 8 q w e [10] 5 0 w r [5w] 9 w e r | [6et] y u [4qe] r t [10w] e r [5wq] w e | [6e] 0 e [0t] [4q] 8 q [8r] [10] 5 0 [5e] [5w] 9 w [9w] | [6ep] [0e] [6ep] [0e] [4qa] [8q] [4qa] [8q] [10s] [5w] [10s] [5w] [5wa] [9w] [5wp] [9w] | [6ep] a s [4qa] s d [10s] a p [5wa] p o [6ep]"
+        BPM  = 78,
+        Sheet = "[6e] 0 e r [4t] 8 q w [1e] 5 8 0 [5w] 9 w r | [6e] 0 e r [4t] 8 q w [1e] 5 8 0 [5w] | [6et] y [4qe] r [10w] e [5wq] w | [6e] 0 e t [4q] 8 q r [10] 5 0 e [5w] 9 w | [6ep] a s [4qa] s d [10s] a p [5wa] p o [6ep]"
     },
     {
-        Name = "🇨🇳 Đồng Thoại (童话 - Tong Hua - Guang Liang)",
-        BPM  = 78,
-        Transpose = 0,
+        Name = "🇨🇳 Đồng Thoại (童话 - Tong Hua - Quang Lương)",
+        BPM  = 72,
         Sheet = "[1o] 5 8 0 w 0 [5i] 2 5 7 9 7 [6u] 3 6 8 0 8 [3y] 7 0 w r w | [4t] 1 4 6 8 6 [1r] 5 8 0 w 0 [2e] 6 9 q e q [5w] 2 5 7 9 7 | [1o] 5 8 0 [5u] [5i] [6u] 3 6 8 [6y] [6t] [4t] 1 4 6 [4r] [4e] [5w] 2 5 7 9 | [1s] [5a] [8p] [0o] [5i] [2u] [5y] [7t] [1s]"
     },
     {
         Name = "🇨🇳 Phi Điểu Và Ve Sầu (飞鸟和蝉 - Fei Niao He Chan)",
-        BPM  = 95,
-        Transpose = 0,
+        BPM  = 80,
         Sheet = "[1s] 5 8 0 w [5a] 2 5 7 9 [6p] 3 6 8 0 [3o] 7 0 w r | [4p] 1 4 6 8 [1o] 5 8 0 w [2i] 6 9 q e [5u] 2 5 7 9 | [1s] [5a] [8p] [0o] [5i] [2u] [5y] [7t] [6r] [3e] [6w] [8q] [30] | [4e] [6t] [8u] [5o] [7p] [9a] [1s]"
     },
     {
         Name = "🇨🇳 Tay Trái Chỉ Trăng (左手指月 - Zuo Shou Zhi Yue)",
-        BPM  = 85,
-        Transpose = -1,
+        BPM  = 76,
         Sheet = "[6e] [0u] [6e] [0u] [30] [7w] [30] [7w] [4q] [8e] [4q] [8e] [10] [5w] [10] [5w] | [29] [6q] [29] [6q] [6e] [0u] [6e] [0u] [5w] [9r] [5w] [9r] [30] [7w] [30] [7w] | [6ep] a [0s] d [4qf] g [8h] j [10k] l [5j] h [5wf] d [9s] a [6ep]"
-    },
-    {
-        Name = "🇨🇳 Yến Vô Hiết (燕无歇 - Yan Wu Xie)",
-        BPM  = 110,
-        Transpose = 0,
-        Sheet = "[6ep] [0e] [6ep] [0e] [4qa] [8q] [4qa] [8q] [10s] [5w] [10s] [5w] [5wd] [9w] [5wd] [9w] | [6ef] [0e] [6ed] [0e] [4qs] [8q] [4qa] [8q] [10p] [5w] [10o] [5w] [5wp] [9w] [5wa] [9w] | [6ep] [0e] [6ep] [0e] [4qa] [8q] [4qa] [8q] [6ep]"
-    },
-    {
-        Name = "🇨🇳 Mang Chủng (芒种 - Grain in Ear)",
-        BPM  = 120,
-        Transpose = 0,
-        Sheet = "[6e] [0e] [6e] [0e] [4q] [8q] [4q] [8q] [10] [5w] [10] [5w] [5w] [9w] [5w] [9w] | [6eu] [0i] [6eo] [0p] [4qa] [8s] [4qd] [8f] [10g] [5f] [10d] [5s] [5wa] [9p] [5wo] [9i] | [6eu] [0e] [6eu] [0e] [4qi] [8q] [4qi] [8q] [6eu]"
     },
 
     -- NHẠC VIỆT NAM HOT TREND 2024 - 2026
     {
         Name = "🇻🇳 Đừng Làm Trái Tim Anh Đau - Sơn Tùng M-TP",
-        BPM  = 105,
-        Transpose = 0,
-        Sheet = "[8u] o s [5w] o a [6e] u p [4q] i o [8u] o s [5w] o a [6e] u p [4q] i o | [8os] [os] [os] [5wa] [6ep] [ep] [4qa] [8os] [os] [os] [5wa] [6ep] [ep] [4qa] | [8u] [8o] [8s] [5w] [5o] [5a] [6e] [6u] [6p] [4q] [4i] [4o] | [8u] o s d f [5w] o a s d [6e] u p a s [4q] i o p a [8s] [0w] [5a] [9w] [6p] [0e] [4o] [8q] [8s]"
+        BPM  = 88,
+        Sheet = "[8s] [0w] [8s] [8s] [5a] [9w] [6p] [0e] [6p] [4a] [8q] | [8s] [0w] [8s] [8s] [5a] [9w] [6p] [0e] [6p] [4a] [8q] | [8s] [8d] [8f] [5a] [5s] [5d] [6p] [6a] [6s] [4o] [4p] [4a] | [8u] [0w] [8o] [8s] [5w] [9w] [5o] [5a] [6e] [0e] [6u] [6p] [4q] [8q] [4i] [4o] [8s]"
     },
     {
         Name = "🇻🇳 Cắt Đôi Nỗi Sầu - Tăng Duy Tân",
-        BPM  = 110,
-        Transpose = -2,
-        Sheet = "[6e] [0u] [6e] [0u] [4q] [8t] [4q] [8t] [10] [5w] [10] [5w] [5w] [9r] [5w] [9r] | [6ep] [0e] [6ep] [0e] [4qa] [8q] [4qa] [8q] [10s] [5w] [10s] [5w] [5wa] [9w] [5wp] [9w] | [6ep] [6e] [6e] [0u] [4qa] [4q] [4q] [8t] [10s] [10] [10] [5w] [5wa] [5w] [5w] [9r] | [6ep] a s [4qa] s d [10s] a p [5wa] p o [6ep]"
+        BPM  = 90,
+        Sheet = "[6p] [0e] [6p] [0e] [4a] [8q] [4a] [8q] [1s] [5w] [1s] [5w] [5a] [9w] [5p] [9w] | [6p] [6p] [6p] [0u] [4a] [4a] [4a] [8t] [1s] [1s] [1s] [5w] [5a] [5a] [5a] [9r] | [6p] a s [4a] s d [1s] a p [5a] p o [6p]"
     },
     {
         Name = "🇻🇳 Nơi Này Có Anh - Sơn Tùng M-TP",
-        BPM  = 98,
-        Transpose = 0,
-        Sheet = "[4q] [8t] [4q] [8t] [5w] [9y] [5w] [9y] [30] [7r] [30] [7r] [6e] [0u] [6e] [0u] | [4qi] o p [5wo] p a [30u] i o [6ep] a s | [4qd] [8q] [4qd] [8q] [5ws] [9w] [5wa] [9w] [30p] [70] [30o] [70] [6ep] [0e] [6ea] [0e] | [4qs] [8q] [4qd] [8q] [5ws] [9w] [5wa] [9w] [10s] [5w] [10s]"
+        BPM  = 84,
+        Sheet = "[4s] [8q] [4s] [4s] [5a] [9w] [5p] [3o] [70] [3o] [3p] [6a] [0e] [6s] | [4d] [8q] [4d] [4d] [5s] [9w] [5a] [3p] [70] [3o] [6p] [0e] [6a] | [4s] [8q] [4d] [5s] [9w] [5a] [1s] [5w] [10]"
     },
     {
         Name = "🇻🇳 See Tình - Hoàng Thùy Linh",
-        BPM  = 115,
-        Transpose = 0,
-        Sheet = "[4q] [4q] [4q] 8 [5w] [5w] [5w] 9 [6e] [6e] [6e] 0 [6e] [6e] [6e] | [4q] 8 [4q] 8 [5w] 9 [5w] 9 [6e] 0 [6e] 0 [6e] 0 | [4q] [4q] [4q] 8 [5w] [5w] [5w] 9 [6e] [6e] [6e] 0 | [4qi] p [5wo] a [6ep] s [6ed] [4qi] p [5wo] a [6ep] | [4q] 8 [5w] 9 [6e] 0 [6e]"
+        BPM  = 95,
+        Sheet = "[4s] [4s] [4s] [4d] [5d] [5d] [5d] [5f] [6f] [6f] [6f] [6d] [6s] [6a] | [4s] [4s] [4s] [4d] [5d] [5d] [5d] [5f] [6f] [6f] [6f] [6d] [6s] [6a] | [4i] p [5o] a [6p] s [6d] [4i] p [5o] a [6p]"
     },
     {
-        Name = "🇻🇳 Waiting For You - MONO",
-        BPM  = 108,
-        Transpose = 0,
-        Sheet = "[6e] [0u] [6e] [0u] [4q] [8t] [4q] [8t] [10] [5w] [10] [5w] [5w] [9r] [5w] [9r] | [6ep] [0e] [6ep] [0e] [4qa] [8q] [4qa] [8q] [10s] [5w] [10s] [5w] [5wa] [9w] [5wp] [9w] | [6eu] [0p] [6es] [0d] [4qf] [8d] [4qs] [8a] [10p] [5o] [10i] [5u] [6ep]"
-    },
-    {
-        Name = "🇻🇳 Cô Nàng Áo Dài - Hot Trend VN",
-        BPM  = 105,
-        Transpose = 0,
-        Sheet = "o p [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p [1o] o p [1s] s d [1f] [5d] s a [5p] o [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p [1s] d f [5g] f d [1s]"
+        Name = "🇻🇳 Cô Nàng Áo Dài - Hot Trend TikTok",
+        BPM  = 86,
+        Sheet = "o p [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p | [1o] o p [1s] s d [1f] [5d] s a [5p] o | [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p [1s]"
     },
 
     -- NHẠC QUỐC TẾ HOT TREND 2024 - 2026
     {
         Name = "🌍 APT. - ROSÉ & Bruno Mars (Hot #1)",
-        BPM  = 105,
-        Transpose = 0,
-        Sheet = "[8f] [0wf] [8f] f [8f] [0wd] [9f] [Qef] [9f] f [9f] [Qed] [0f] [wrf] [0f] f [0f] [wrd] [wf] [ry] [wd] f [wd] [ryf] | [8f] [0wf] [8f] f [8f] [0wd] [9f] [Qef] [9f] f [9f] [Qed] [0f] [wrf] [0f] f [0f] [wrd] [wf] [ry] [wd] f [wd] [ryf] | [8s] [0w] [8s] [8s] [8a] [9p] [Qe] [9p] [9p] [9o] [0p] [wr] [0p] [0p] [0a] [ws] [ry] [wd] [wf]"
+        BPM  = 95,
+        Sheet = "[8f] [0w] [8f] [8f] [8d] [9f] [Qe] [9f] [9f] [9d] [0f] [wr] [0f] [0f] [0d] [wf] [ry] [wd] [wf] | [8f] [0w] [8f] [8f] [8d] [9f] [Qe] [9f] [9f] [9d] [0f] [wr] [0f] [0f] [0d] [wf] [ry] [wd] [wf] | [8s] [0w] [8s] [8s] [8a] [9p] [Qe] [9p] [9p] [9o] [0p] [wr] [0p] [0p] [0a] [ws] [ry] [wd]"
     },
     {
         Name = "🌍 Die With A Smile - Lady Gaga & Bruno Mars",
-        BPM  = 85,
-        Transpose = 0,
-        Sheet = "[8oa] r u o u r [8oa] r u [of] u r [qip] t u p u t [qip] t u p u t | [8oah] [rf] [uf] [pj] [uak] r j [qip] t u p u t | [8oa] r u o u r [8oa] r u [of] u r [qip] t u p u t [qip] t u p u t | [8f] [wh] [0j] [wh] [8f] [qd] [ti] [qd] [ti] [8f] [wh] [0j] [wh] [8f] [5d] [9y] [5d] [8s]"
+        BPM  = 75,
+        Sheet = "[8o] [wh] [0j] [wh] [8f] [4i] [8p] [qd] [8p] [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] | [8o] [wh] [0j] [wh] [8f] [4i] [8p] [qd] [8p] [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] | [8s] [wh] [0j] [wh] [8f] [4d] [8p] [qd] [8p] [1s]"
     },
     {
         Name = "🌍 Golden Hour - JVKE",
-        BPM  = 115,
-        Transpose = 0,
-        Sheet = "[158] w t y u [48q] e t y i [158] w t y u [59w] r y u o [158] w t y u [48q] e t y i [158] w t y u [59w] r y u o | [60e] t u p s [48q] e t y i [158] w t y u [59w] r y u o | [18] [5w] [8t] [0y] [wu] [4q] [8e] [qt] [8y] [ei] [18] [5w] [8t] [0y] [wu] [5w] [9r] [wy] [9u] [ro]"
+        BPM  = 90,
+        Sheet = "[id] [pf] [sh] [pj] [sh] [pf] [id] [pf] [sh] [pj] [sh] [pf] | [od] [pf] [sh] [pj] [sh] [pf] [od] [pf] [sh] [pj] [sh] [pf] | [yd] [pf] [sh] [pj] [sh] [pf] [yd] [pf] [sh] [pj] [sh] [pf] | [td] [pf] [sh] [pj] [sh] [pf] [td] [pf] [sh] [pj] [sh] [pf]"
     },
     {
         Name = "🌍 Until I Found You - Stephen Sanchez",
-        BPM  = 80,
-        Transpose = -2,
-        Sheet = "[tf] f s o [ra] h f a o a [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg] [yh] [yh] [yh] [yd] [yd] [yd] | [tf] f s o [ra] h f a o a [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg] | [4qf] [8f] [qs] [8o] [5wa] [9h] [wf] [9a] [10s] [5g] [0s] [5p] [6es] [0s] [es] [0s]"
+        BPM  = 72,
+        Sheet = "[tf] f s o [ra] h f a o a | [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg] | [yh] [yh] [yh] [yd] [yd] [yd] | [tf] f s o [ra] h f a o a | [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg]"
     },
     {
         Name = "🌍 Glimpse of Us - Joji",
-        BPM  = 75,
-        Transpose = 0,
-        Sheet = "[6e] [0u] [6e] [0u] [4q] [8t] [4q] [8t] [10] [5w] [10] [5w] [5w] [9r] [5w] [9r] | [6e] u [0p] [6e] u [0p] [4q] t [8i] [4q] t [8i] [10] w [5u] [10] w [5u] [5w] r [9y] [5w] r [9y] | [6ep] [0e] [6ea] [0e] [4qs] [8q] [4qd] [8q] [10f] [5w] [10d] [5w] [5ws] [9w] [5wa] [9w] [6ep]"
+        BPM  = 68,
+        Sheet = "[6e] [0u] [6e] [0u] [4q] [8t] [4q] [8t] [10] [5w] [10] [5w] [5w] [9r] [5w] [9r] | [6e] u [0p] [6e] u [0p] [4q] t [8i] [4q] t [8i] [10] w [5u] [10] w [5u] [5w] r [9y] [5w] r [9y] | [6ep] [0e] [6ea] [0e] [4qs] [8q] [4qd] [8q] [10f] [5w] [10d] [5w] [5ws]"
     },
     {
         Name = "🌍 A Thousand Years - Christina Perri",
-        BPM  = 90,
-        Transpose = 0,
-        Sheet = "[1u] [5o] [8s] [5o] [1u] [5o] [8s] [5o] [4i] [8p] [qd] [8p] [4i] [8p] [qd] [8p] | [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] [6t] [0u] [ep] [0u] [4i] [8p] [qd] [8p] | [1u] o s [5y] o a [6t] u p [4r] y o [1u] o s [5y] o a [6t] u p"
+        BPM  = 76,
+        Sheet = "[1u] [5o] [8s] [5o] [1u] [5o] [8s] [5o] [4i] [8p] [qd] [8p] [4i] [8p] [qd] [8p] | [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] [6t] [0u] [ep] [0u] [4i] [8p] [qd] [8p] | [1u] o s [5y] o a [6t] u p [4r] y o [1u]"
     },
     {
         Name = "🎼 Canon in D - Pachelbel (Bản Giao Hưởng)",
-        BPM  = 95,
-        Transpose = 0,
-        Sheet = "u o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o [8u] o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o | [18] [5w] [80] [5w] [60] [30] [68] [30] [48] [18] [46] [18] [5w] [2w] [57] [2w] [18]"
+        BPM  = 80,
+        Sheet = "u o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o | [8u] o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o"
     },
     {
         Name = "🎼 Fur Elise - Beethoven (Bản Chuẩn Gốc)",
-        BPM  = 130,
-        Transpose = 0,
-        Sheet = "e W e W e u y t r [0e] t u [60r] u O [60e] u e W e W e u y t r [0e] t u [60r] u O [60e] [0r] t y [8u] i o [7y] u i [6t] y u [5r] [0e] W e W e u y t r [0e] t u [60r] u O [60e] | [0e] u p a [0s] d f g [6a] p o i [6u] y t r [0e] W e W e"
+        BPM  = 96,
+        Sheet = "e W e W e u y t r | [0e] t u [60r] u O [60e] u | e W e W e u y t r | [0e] t u [60r] u O [60e] | [0r] t y [8u] i o [7y] u i [6t] y u [5r] | e W e W e u y t r | [0e] t u [60r] u O [60e]"
+    },
+    {
+        Name = "🎼 Interstellar Theme - Hans Zimmer",
+        BPM  = 82,
+        Sheet = "u o u o u o u o | [6u] o [6u] o [6u] o [6u] o | [4u] p [4u] p [4u] p [4u] p | [1u] o [1u] o [1u] o [1u] o | [5u] o [5u] o [5u] o [5u] o | [6u] [0o] [6u] [0o] [4u] [8p] [4u] [8p] [1u] [5o] [1u] [5o] [5y] [9o] [5y] [9o] | [6t] [0u] [6t] [0u]"
     }
 }
 
--- ================================================
--- TRẠNG THÁI & CẤU HÌNH
--- ================================================
+-- Trạng thái
 local Config = {
     BPM         = SongLibrary[1].BPM,
-    Transpose   = SongLibrary[1].Transpose, -- Độ cao (-12 đến +12)
-    Sustain     = true,  -- Tự động giữ bàn đạp ngân âm Space
-    Humanizer   = true,  -- Dao động micro-delay ±4ms
+    UseGameChat = false, -- Gửi lệnh >auto vào game
     Loop        = false,
-    UseGameChat = false,
 }
 
 local Playback = {
@@ -278,76 +223,75 @@ local Playback = {
     CustomSheet = SongLibrary[1].Sheet,
 }
 
--- ================================================
--- HÀM MÔ PHỎNG BẤM PHÍM PIANO (CHUẨN ÂM THANH)
--- ================================================
-local function playSingleKey(char)
-    local actualChar = transposeChar(char, Config.Transpose)
-    local map = KeyMap[actualChar]
-    if not map then return end
-
-    local kc    = map.Code
-    local shift = map.Shift
-
+-- Gửi lệnh chat >auto vào game
+local function sendChatAuto(sheetText)
+    local msg = ">auto " .. sheetText
     pcall(function()
-        if shift then
-            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
-            task.wait(0.003)
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local textChannels = TextChatService:FindFirstChild("TextChannels")
+            if textChannels then
+                local gen = textChannels:FindFirstChild("RBXGeneral")
+                if gen then gen:SendAsync(msg) end
+            end
+        else
+            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
         end
+    end)
+end
 
-        VirtualInputMgr:SendKeyEvent(true, kc, false, game)
-        task.wait(0.035) -- Giữ phím đủ lâu để âm thanh vang lên đầy đủ
-        VirtualInputMgr:SendKeyEvent(false, kc, false, game)
-
-        if shift then
-            task.wait(0.003)
+-- Bấm phím đơn (êm dịu, không giật cục)
+local function hitKey(char)
+    local map = KeyMap[char]
+    if not map then return end
+    pcall(function()
+        if map.Shift then
+            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+            task.wait(0.005)
+        end
+        VirtualInputMgr:SendKeyEvent(true, map.Code, false, game)
+        task.wait(0.04) -- Độ ngân phím ấm
+        VirtualInputMgr:SendKeyEvent(false, map.Code, false, game)
+        if map.Shift then
+            task.wait(0.005)
             VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
         end
     end)
 end
 
-local function playChord(chordStr)
-    local hasShift = false
-    local keysToHit = {}
-
-    for i = 1, #chordStr do
-        local c = chordStr:sub(i, i)
-        local actualChar = transposeChar(c, Config.Transpose)
-        local m = KeyMap[actualChar]
+-- Bấm hợp âm chuẩn
+local function hitChord(chord)
+    local shifts = false
+    local list = {}
+    for i = 1, #chord do
+        local c = chord:sub(i, i)
+        local m = KeyMap[c]
         if m then
-            table.insert(keysToHit, m.Code)
-            if m.Shift then hasShift = true end
+            table.insert(list, m.Code)
+            if m.Shift then shifts = true end
         end
     end
-
-    if #keysToHit == 0 then return end
+    if #list == 0 then return end
 
     pcall(function()
-        if hasShift then
+        if shifts then
             VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
-            task.wait(0.003)
+            task.wait(0.005)
         end
-
-        -- Nhấn lần lượt cách nhau 3ms để engine bắt đủ tất cả các nốt hợp âm
-        for _, kc in ipairs(keysToHit) do
+        for _, kc in ipairs(list) do
             VirtualInputMgr:SendKeyEvent(true, kc, false, game)
             task.wait(0.003)
         end
-        task.wait(0.035)
-        for _, kc in ipairs(keysToHit) do
+        task.wait(0.05)
+        for _, kc in ipairs(list) do
             VirtualInputMgr:SendKeyEvent(false, kc, false, game)
         end
-
-        if hasShift then
-            task.wait(0.003)
+        if shifts then
+            task.wait(0.005)
             VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
         end
     end)
 end
 
--- ================================================
--- BỘ GIẢI MÃ SHEET & PHÁT NHẠC
--- ================================================
 local function stopMusic()
     Playback.IsPlaying = false
     Playback.IsPaused  = false
@@ -355,29 +299,27 @@ local function stopMusic()
         task.cancel(Playback.Thread)
         Playback.Thread = nil
     end
-    -- Nhả bàn đạp ngân âm
-    pcall(function()
-        VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-    end)
 end
 
-local function parseAndPlay(sheetText, bpm)
+-- Bộ phát nhạc du dương theo đúng nhịp điệu bài hát
+local function playMusic(sheetText, bpm)
     stopMusic()
     Playback.IsPlaying = true
     Playback.IsPaused  = false
 
+    -- Nếu bật chế độ dùng lệnh game >auto
+    if Config.UseGameChat then
+        sendChatAuto(sheetText)
+        Playback.IsPlaying = false
+        return
+    end
+
     Playback.Thread = task.spawn(function()
-        -- Kích hoạt Bàn đạp ngân âm (Sustain Pedal Space)
-        if Config.Sustain then
-            pcall(function()
-                VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-            end)
-        end
+        local beat = 60 / bpm -- Nhịp cơ bản (ví dụ 80 BPM = 0.75s)
 
         repeat
             local i = 1
             local len = #sheetText
-            local baseDelay = (60 / bpm) / 4
 
             while i <= len and Playback.IsPlaying do
                 while Playback.IsPaused and Playback.IsPlaying do
@@ -391,31 +333,27 @@ local function parseAndPlay(sheetText, bpm)
                     local closeIdx = sheetText:find("%]", i)
                     if closeIdx then
                         local chordContent = sheetText:sub(i + 1, closeIdx - 1)
-                        playChord(chordContent)
+                        hitChord(chordContent)
                         i = closeIdx + 1
                     else
                         i = i + 1
                     end
-                    local d = baseDelay
-                    if Config.Humanizer then d = d + (math.random(-4, 4) / 1000) end
-                    task.wait(math.max(0.02, d))
+                    task.wait(beat * 0.45) -- Ngân hợp âm
 
                 elseif char == " " then
-                    local d = baseDelay * 1.6
-                    if Config.Humanizer then d = d + (math.random(-4, 4) / 1000) end
-                    task.wait(math.max(0.03, d))
+                    -- Khoảng trắng = nghỉ nhịp phách
+                    task.wait(beat * 0.4)
                     i = i + 1
 
                 elseif char == "|" then
-                    task.wait(baseDelay * 2.8)
+                    -- Vạch nhịp = nghỉ chuyển đoạn
+                    task.wait(beat * 1.0)
                     i = i + 1
 
                 else
-                    if KeyMap[char] or KeyMap[char:lower()] or KeyMap[char:upper()] then
-                        playSingleKey(char)
-                        local d = baseDelay
-                        if Config.Humanizer then d = d + (math.random(-4, 4) / 1000) end
-                        task.wait(math.max(0.02, d))
+                    if KeyMap[char] then
+                        hitKey(char)
+                        task.wait(beat * 0.38) -- Nốt ngân vang du dương
                     end
                     i = i + 1
                 end
@@ -432,52 +370,23 @@ local function parseAndPlay(sheetText, bpm)
     end)
 end
 
--- ================================================
--- FIX TRIỆT ĐỂ: TỰ ĐỘNG TÌM GHẾ & NGỒI VÀO ĐÀN
--- ================================================
-local function autoSitNearestPiano(statusLabel)
+-- Tìm ghế và ngồi vào đàn
+local function sitPiano(statusLabel)
     local char = LP.Character
     if not char then return end
     local hrp  = char:FindFirstChild("HumanoidRootPart")
     local hum  = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
 
-    local bestSeat   = nil
-    local bestPrompt = nil
-    local bestDist   = 9999
+    local bestSeat = nil
+    local bestDist = 9999
 
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
-            local isPiano = false
-            local cur = obj
-            for _ = 1, 4 do
-                if cur and cur.Name then
-                    local ln = cur.Name:lower()
-                    if ln:find("piano") or ln:find("bench") or ln:find("seat") 
-                    or ln:find("chair") or ln:find("music") or ln:find("stool") then
-                        isPiano = true; break
-                    end
-                    cur = cur.Parent
-                end
-            end
-
             local d = (hrp.Position - obj.Position).Magnitude
-            if (isPiano or d < 35) and not obj.Occupant and d < bestDist then
+            if not obj.Occupant and d < bestDist then
                 bestSeat = obj
                 bestDist = d
-            end
-        elseif obj:IsA("ProximityPrompt") then
-            local pAct = (obj.ActionText or ""):lower()
-            local pObj = (obj.ObjectText or ""):lower()
-            local pName = obj.Name:lower()
-            if pAct:find("sit") or pAct:find("play") or pObj:find("piano") or pName:find("piano") then
-                local promptPos = obj.Parent and obj.Parent:IsA("BasePart") and obj.Parent.Position or nil
-                if promptPos then
-                    local d = (hrp.Position - promptPos).Magnitude
-                    if d < bestDist then
-                        bestPrompt = obj
-                    end
-                end
             end
         end
     end
@@ -511,20 +420,6 @@ local function autoSitNearestPiano(statusLabel)
                 if statusLabel then statusLabel.Text = "🪑  Tự Ngồi Vào Đàn Piano" end
             end)
         end
-    elseif bestPrompt and fireproximityprompt then
-        if statusLabel then statusLabel.Text = "⏳ Kích hoạt E to Play..." end
-        local pPart = bestPrompt.Parent
-        if pPart and pPart:IsA("BasePart") then
-            hrp.CFrame = pPart.CFrame + Vector3.new(0, 1, 0)
-            task.wait(0.1)
-        end
-        fireproximityprompt(bestPrompt)
-        if statusLabel then 
-            statusLabel.Text = "✅ Đã ngồi vào đàn thành công!"
-            task.delay(2, function()
-                if statusLabel then statusLabel.Text = "🪑  Tự Ngồi Vào Đàn Piano" end
-            end)
-        end
     else
         if statusLabel then 
             statusLabel.Text = "❌ Không tìm thấy cây đàn nào gần bạn!"
@@ -550,8 +445,8 @@ SG.Parent         = game:GetService("CoreGui")
 
 local Main = Instance.new("Frame", SG)
 Main.Name             = "Main"
-Main.Size             = UDim2.new(0, 310, 0, 570)
-Main.Position         = UDim2.new(0, 20, 0.5, -285)
+Main.Size             = UDim2.new(0, 310, 0, 580)
+Main.Position         = UDim2.new(0, 20, 0.5, -290)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
 Main.BorderSizePixel  = 0
 Main.Active           = true
@@ -579,15 +474,9 @@ Subtitle.TextColor3      = Color3.fromRGB(90, 80, 130)
 Subtitle.Font            = Enum.Font.Gotham
 Subtitle.TextSize        = 9.5
 
-local Div1 = Instance.new("Frame", Main)
-Div1.Size             = UDim2.new(0.88, 0, 0, 1)
-Div1.Position         = UDim2.new(0.06, 0, 0, 52)
-Div1.BackgroundColor3 = Color3.fromRGB(60, 40, 110)
-Div1.BorderSizePixel  = 0
-
 local Scroll = Instance.new("ScrollingFrame", Main)
-Scroll.Size             = UDim2.new(0.92, 0, 0, 505)
-Scroll.Position         = UDim2.new(0.04, 0, 0, 58)
+Scroll.Size             = UDim2.new(0.92, 0, 0, 515)
+Scroll.Position         = UDim2.new(0.04, 0, 0, 55)
 Scroll.BackgroundTransparency = 1
 Scroll.BorderSizePixel  = 0
 Scroll.ScrollBarThickness = 3
@@ -598,7 +487,7 @@ local uiList = Instance.new("UIListLayout", Scroll)
 uiList.SortOrder = Enum.SortOrder.LayoutOrder
 uiList.Padding   = UDim.new(0, 8)
 
--- 1. NÚT TỰ NGỒI VÀO ĐÀN
+-- 1. NÚT NGỒI VÀO ĐÀN
 local btnSit = Instance.new("TextButton", Scroll)
 btnSit.Size             = UDim2.new(1, 0, 0, 38)
 btnSit.BackgroundColor3 = Color3.fromRGB(35, 18, 65)
@@ -610,11 +499,9 @@ btnSit.LayoutOrder      = 1
 Instance.new("UICorner", btnSit).CornerRadius = UDim.new(0, 8)
 local sSit = Instance.new("UIStroke", btnSit)
 sSit.Color = Color3.fromRGB(110, 50, 220); sSit.Thickness = 1
-btnSit.MouseButton1Click:Connect(function()
-    autoSitNearestPiano(btnSit)
-end)
+btnSit.MouseButton1Click:Connect(function() sitPiano(btnSit) end)
 
--- 2. HỘP ĐIỀU KHIỂN PHÁT NHẠC
+-- 2. HỘP ĐIỀU KHIỂN PHÁT NHẠC (PLAY / PAUSE / STOP)
 local ctlFrame = Instance.new("Frame", Scroll)
 ctlFrame.Size             = UDim2.new(1, 0, 0, 40)
 ctlFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
@@ -651,50 +538,47 @@ btnStop.Font             = Enum.Font.GothamBold
 btnStop.TextSize         = 11
 Instance.new("UICorner", btnStop).CornerRadius = UDim.new(0, 6)
 
--- 3. BỘ CHỈNH CAO ĐỘ (TRANSPOSE)
-local transFrame = Instance.new("Frame", Scroll)
-transFrame.Size             = UDim2.new(1, 0, 0, 36)
-transFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-transFrame.LayoutOrder      = 3
-Instance.new("UICorner", transFrame).CornerRadius = UDim.new(0, 8)
+-- 3. HỘP CÔNG CỤ: LỆNH GAME >AUTO & NÚT COPY SHEET
+local toolFrame = Instance.new("Frame", Scroll)
+toolFrame.Size             = UDim2.new(1, 0, 0, 36)
+toolFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+toolFrame.LayoutOrder      = 3
+Instance.new("UICorner", toolFrame).CornerRadius = UDim.new(0, 8)
 
-local transLabel = Instance.new("TextLabel", transFrame)
-transLabel.Size               = UDim2.new(0.55, 0, 1, 0)
-transLabel.Position           = UDim2.new(0.04, 0, 0, 0)
-transLabel.BackgroundTransparency = 1
-transLabel.Text               = "Cao độ: " .. (Config.Transpose >= 0 and "+" or "") .. Config.Transpose .. " Tông"
-transLabel.TextColor3         = Color3.fromRGB(210, 200, 230)
-transLabel.Font               = Enum.Font.GothamSemibold
-transLabel.TextSize           = 12
-transLabel.TextXAlignment     = Enum.TextXAlignment.Left
+local btnCopy = Instance.new("TextButton", toolFrame)
+btnCopy.Size             = UDim2.new(0.48, 0, 0.8, 0)
+btnCopy.Position         = UDim2.new(0.02, 0, 0.1, 0)
+btnCopy.BackgroundColor3 = Color3.fromRGB(30, 45, 80)
+btnCopy.Text             = "📋 Chép Sheet"
+btnCopy.TextColor3       = Color3.fromRGB(180, 215, 255)
+btnCopy.Font             = Enum.Font.GothamBold
+btnCopy.TextSize         = 11
+Instance.new("UICorner", btnCopy).CornerRadius = UDim.new(0, 6)
 
-local btnTransMinus = Instance.new("TextButton", transFrame)
-btnTransMinus.Size             = UDim2.new(0, 34, 0, 26)
-btnTransMinus.Position         = UDim2.new(0.65, 0, 0.5, -13)
-btnTransMinus.BackgroundColor3 = Color3.fromRGB(35, 30, 55)
-btnTransMinus.Text             = "-1"
-btnTransMinus.TextColor3       = Color3.fromRGB(220, 200, 255)
-btnTransMinus.Font             = Enum.Font.GothamBold
-btnTransMinus.TextSize         = 11
-Instance.new("UICorner", btnTransMinus).CornerRadius = UDim.new(0, 6)
+local btnChatAuto = Instance.new("TextButton", toolFrame)
+btnChatAuto.Size             = UDim2.new(0.48, 0, 0.8, 0)
+btnChatAuto.Position         = UDim2.new(0.50, 0, 0.1, 0)
+btnChatAuto.BackgroundColor3 = Color3.fromRGB(45, 25, 75)
+btnChatAuto.Text             = "💬 Gửi Lệnh >auto"
+btnChatAuto.TextColor3       = Color3.fromRGB(220, 180, 255)
+btnChatAuto.Font             = Enum.Font.GothamBold
+btnChatAuto.TextSize         = 11
+Instance.new("UICorner", btnChatAuto).CornerRadius = UDim.new(0, 6)
 
-local btnTransPlus = Instance.new("TextButton", transFrame)
-btnTransPlus.Size              = UDim2.new(0, 34, 0, 26)
-btnTransPlus.Position          = UDim2.new(0.82, 0, 0.5, -13)
-btnTransPlus.BackgroundColor3  = Color3.fromRGB(50, 25, 110)
-btnTransPlus.Text              = "+1"
-btnTransPlus.TextColor3        = Color3.fromRGB(220, 200, 255)
-btnTransPlus.Font              = Enum.Font.GothamBold
-btnTransPlus.TextSize          = 11
-Instance.new("UICorner", btnTransPlus).CornerRadius = UDim.new(0, 6)
-
-btnTransMinus.MouseButton1Click:Connect(function()
-    Config.Transpose = math.max(-12, Config.Transpose - 1)
-    transLabel.Text = "Cao độ: " .. (Config.Transpose >= 0 and "+" or "") .. Config.Transpose .. " Tông"
+btnCopy.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard(Playback.CustomSheet)
+        btnCopy.Text = "✅ Đã Chép!"
+        task.delay(1.5, function() btnCopy.Text = "📋 Chép Sheet" end)
+    else
+        btnCopy.Text = "❌ Không hỗ trợ"
+    end
 end)
-btnTransPlus.MouseButton1Click:Connect(function()
-    Config.Transpose = math.min(12, Config.Transpose + 1)
-    transLabel.Text = "Cao độ: " .. (Config.Transpose >= 0 and "+" or "") .. Config.Transpose .. " Tông"
+
+btnChatAuto.MouseButton1Click:Connect(function()
+    sendChatAuto(Playback.CustomSheet)
+    btnChatAuto.Text = "✅ Đã Gửi!"
+    task.delay(1.5, function() btnChatAuto.Text = "💬 Gửi Lệnh >auto" end)
 end)
 
 -- 4. ĐIỀU CHỈNH TỐC ĐỘ (BPM)
@@ -739,7 +623,7 @@ btnMinus.MouseButton1Click:Connect(function()
     bpmLabel.Text = "Tốc độ: " .. Config.BPM .. " BPM"
 end)
 btnPlus.MouseButton1Click:Connect(function()
-    Config.BPM = math.min(260, Config.BPM + 10)
+    Config.BPM = math.min(200, Config.BPM + 10)
     bpmLabel.Text = "Tốc độ: " .. Config.BPM .. " BPM"
 end)
 
@@ -779,7 +663,7 @@ btnPlay.MouseButton1Click:Connect(function()
     if Playback.IsPaused then
         Playback.IsPaused = false
     else
-        parseAndPlay(Playback.CustomSheet, Config.BPM)
+        playMusic(Playback.CustomSheet, Config.BPM)
     end
 end)
 
@@ -813,7 +697,7 @@ sSearch.Color = Color3.fromRGB(90, 50, 170); sSearch.Thickness = 1
 local libTitle = Instance.new("TextLabel", Scroll)
 libTitle.Size               = UDim2.new(1, 0, 0, 18)
 libTitle.BackgroundTransparency = 1
-libTitle.Text               = "🎵 Danh Sách Nhạc Hot Trend (20 Bài Full):"
+libTitle.Text               = "🎵 Danh Sách Nhạc Hot (Chạm Để Đánh):"
 libTitle.TextColor3         = Color3.fromRGB(170, 150, 210)
 libTitle.Font               = Enum.Font.GothamSemibold
 libTitle.TextSize           = 11
@@ -839,10 +723,8 @@ for idx, song in ipairs(SongLibrary) do
         Playback.CustomSheet = song.Sheet
         sheetBox.Text        = song.Sheet
         Config.BPM           = song.BPM
-        Config.Transpose     = song.Transpose or 0
         bpmLabel.Text        = "Tốc độ: " .. Config.BPM .. " BPM"
-        transLabel.Text      = "Cao độ: " .. (Config.Transpose >= 0 and "+" or "") .. Config.Transpose .. " Tông"
-        parseAndPlay(song.Sheet, song.BPM)
+        playMusic(song.Sheet, song.BPM)
     end)
 
     table.insert(songButtons, {Button = sBtn, Name = song.Name:lower()})
@@ -912,4 +794,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] Visual Piano Hub 🎹 (Pro Musician Edition) Loaded!")
+print("[VOSS] Visual Piano Hub 🎹 (Master Acoustic Edition) Loaded!")
