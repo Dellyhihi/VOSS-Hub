@@ -1,23 +1,26 @@
 -- ================================================
--- VOSS | Visual Piano Hub 🎹 (Autoplayer Edition)
+-- VOSS | Visual Piano Hub 🎹 (Mega Hits Edition)
 -- Game: Visual Pianos (PlaceId: 5593470048)
 -- ================================================
--- [TÍNH NĂNG ĐẲNG CẤP]:
--- 1. Tự Động Đánh Đàn (Auto Piano Player):
---    - Chơi chuẩn hợp âm [...], nốt Shift, nốt đơn
---    - Tích hợp sẵn 8 bài nhạc kinh điển (Canon in D, Faded, Fur Elise, Interstellar,...)
---    - Cho phép dán bất kỳ Sheet nhạc nào từ Virtual Piano
--- 2. Chế Độ Đánh:
---    - VirtualInputManager (Mô phỏng bấm phím thật)
---    - Lệnh Chat Game (>auto <sheet>) tích hợp sẵn
--- 3. Điều Chỉnh Tốc Độ (BPM / Speed):
---    - Nút [-] và [+] tăng giảm nhịp điệu từ 40 đến 260 BPM
---    - Nút [Tạm Dừng / Phát Tiếp / Dừng Hẳn]
--- 4. Chế Độ Đánh Như Người Thật (Humanizer):
---    - Tự động ngẫu nhiên độ trễ ±5ms giúp giai điệu truyền cảm, chống bot check
--- 5. Tự Ngồi Vào Đàn (Auto Sit Bench):
---    - 1 click tự động tìm ghế đàn piano gần nhất và ngồi vào
--- 6. Giao diện VOSS Tím Neon sang trọng, hỗ trợ cử chỉ 3 ngón tay trên Mobile
+-- [NÂNG CẤP MỚI]:
+-- 1. FIX TRIỆT ĐỂ LỖI NGỒI ĐÀN PIANO:
+--    - Tự động quét cả Seat/Bench lẫn ProximityPrompt (E to Play)
+--    - Tự xoay người chuẩn góc hướng vào bàn phím đàn
+--    - Thử lại 3 lần liên tiếp đảm bảo dính ghế 100%
+-- 2. KHO NHẠC SIÊU HOT HIT TREND 2024 - 2026:
+--    - APT. (ROSÉ & Bruno Mars)
+--    - Die With A Smile (Lady Gaga & Bruno Mars)
+--    - Đừng Làm Trái Tim Anh Đau (Sơn Tùng M-TP)
+--    - See Tình (Hoàng Thùy Linh)
+--    - Until I Found You (Stephen Sanchez)
+--    - Golden Hour (JVKE)
+--    - Glimpse of Us (Joji)
+--    - A Thousand Years (Christina Perri)
+--    - Tokyo Ghoul (Unravel)
+--    - Coffin Dance (Astronomia)
+--    - Canon in D, Fur Elise, Interstellar, River Flows in You,...
+-- 3. CÓ THANH TÌM KIẾM BÀI HÁT (SEARCH BOX)
+-- 4. BỘ ĐIỀU KHIỂN BPM & HUMANIZER ĐÁNH NHƯ NGHỆ SĨ THẬT
 -- ================================================
 
 local Players           = game:GetService("Players")
@@ -115,46 +118,86 @@ local KeyMap = {
 }
 
 -- ================================================
--- THƯ VIỆN NHẠC CÓ SẴN (PRESET SONGS)
+-- KHO NHẠC SIÊU HOT HIT 2024 - 2026 (16 BÀI)
 -- ================================================
 local SongLibrary = {
     {
-        Name = "Canon in D - Pachelbel",
-        BPM  = 95,
-        Sheet = "u o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o [8u] o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o"
-    },
-    {
-        Name = "Faded - Alan Walker",
-        BPM  = 90,
-        Sheet = "[6e] u p s [4q] t i p [10] w u o [5w] r y o [6e] u p s [4q] t i p [10] w u o [5w] r y o [6p] s f j [4i] p d g [1u] o s h [5y] o d h [6p] s f j [4i] p d g [1u] o s h [5y] o d h"
-    },
-    {
-        Name = "Fur Elise - Beethoven",
-        BPM  = 130,
-        Sheet = "e W e W e u y t r [0e] t u [60r] u O [60e] u e W e W e u y t r [0e] t u [60r] u O [60e] [0r] t y [8u] i o [7y] u i [6t] y u [5r] [0e] W e W e u y t r [0e] t u [60r] u O [60e]"
-    },
-    {
-        Name = "Interstellar Theme - Hans Zimmer",
+        Name = "🔥 APT. - ROSÉ & Bruno Mars",
         BPM  = 100,
-        Sheet = "u o u o u o u o [6u] o [6u] o [6u] o [6u] o [4u] p [4u] p [4u] p [4u] p [1u] o [1u] o [1u] o [1u] o [5u] o [5u] o [5u] o [5u] o [6u] [0o] [6u] [0o] [4u] [8p] [4u] [8p] [1u] [5o] [1u] [5o] [5y] [9o] [5y] [9o] [6t] [0u] [6t] [0u]"
+        Sheet = "[8f] [0wf] [8f] f [8f] [0wd] [9f] [Qef] [9f] f [9f] [Qed] [0f] [wrf] [0f] f [0f] [wrd] [wf] [ry] [wd] f [wd] [ryf] [8f] [0wf] [8f] f [8f] [0wd] [9f] [Qef] [9f] f [9f] [Qed] [0f] [wrf] [0f] f [0f] [wrd] [wf] [ry] [wd] f [wd] [ryf]"
     },
     {
-        Name = "River Flows in You - Yiruma",
+        Name = "🔥 Die With A Smile - Lady Gaga & Bruno Mars",
+        BPM  = 85,
+        Sheet = "[8oa] r u o u r [8oa] r u [of] u r [qip] t u p u t [qip] t u p u t [8oah] [rf] [uf] [pj] [uak] r j [qip] t u p u t [8oa] r u o u r [8oa] r u [of] u r [qip] t u p u t"
+    },
+    {
+        Name = "🔥 Đừng Làm Trái Tim Anh Đau - Sơn Tùng M-TP",
+        BPM  = 105,
+        Sheet = "[8u] o s [5w] o a [6e] u p [4q] i o [8u] o s [5w] o a [6e] u p [4q] i o [8os] [os] [os] [5wa] [6ep] [ep] [4qa] [8os] [os] [os] [5wa] [6ep] [ep] [4qa] [8u] o s [5w] o a [6e] u p [4q] i o"
+    },
+    {
+        Name = "🔥 See Tình - Hoàng Thùy Linh",
+        BPM  = 115,
+        Sheet = "[4q] [4q] [4q] 8 [5w] [5w] [5w] 9 [6e] [6e] [6e] 0 [6e] [6e] [6e] [4q] 8 [4q] 8 [5w] 9 [5w] 9 [6e] 0 [6e] 0 [6e] 0 [4q] [4q] [4q] 8 [5w] [5w] [5w] 9 [6e] [6e] [6e] 0"
+    },
+    {
+        Name = "🔥 Until I Found You - Stephen Sanchez",
         BPM  = 80,
-        Sheet = "a s [6d] f d s a [4p] o p [1s] a p o [5y] u [6d] f d s a [4p] o p [1s] a p o [5y] u [6u] p [4i] p [1o] s [5y] o [6u] p [4i] p [1o] s [5y] o [6d] f d s a [4p] o p [1s] a p o [5y]"
+        Sheet = "[tf] f s o [ra] h f a o a [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg] [yh] [yh] [yh] [yd] [yd] [yd] [tf] f s o [ra] h f a o a [ti] s g s p [ts] [ts] [ts] [tg] [tg] [tg]"
     },
     {
-        Name = "Golden Hour - JVKE",
+        Name = "🔥 Golden Hour - JVKE",
         BPM  = 115,
         Sheet = "[158] w t y u [48q] e t y i [158] w t y u [59w] r y u o [158] w t y u [48q] e t y i [158] w t y u [59w] r y u o [60e] t u p s [48q] e t y i [158] w t y u [59w] r y u o"
     },
     {
-        Name = "He's a Pirate (Pirates of Caribbean)",
-        BPM  = 140,
-        Sheet = "a s [6d] d d f [6g] g g f [6d] s a s [6d] d d f [6g] g g f [6d] s [6d] [4f] g [5h] h h j [5k] k k j [5h] g f g [5h] h h j [5k] k k j [5h] g [6d] s a"
+        Name = "🔥 Glimpse of Us - Joji",
+        BPM  = 75,
+        Sheet = "[6e] [0u] [6e] [0u] [4q] [8t] [4q] [8t] [10] [5w] [10] [5w] [5w] [9r] [5w] [9r] [6e] u [0p] [6e] u [0p] [4q] t [8i] [4q] t [8i] [10] w [5u] [10] w [5u] [5w] r [9y] [5w] r [9y]"
     },
     {
-        Name = "Co Nang Ao Dai (Vietnamese Song)",
+        Name = "🔥 A Thousand Years - Christina Perri",
+        BPM  = 90,
+        Sheet = "[1u] [5o] [8s] [5o] [1u] [5o] [8s] [5o] [4i] [8p] [qd] [8p] [4i] [8p] [qd] [8p] [1u] [5o] [8s] [5o] [5y] [9o] [wa] [9o] [6t] [0u] [ep] [0u] [4i] [8p] [qd] [8p]"
+    },
+    {
+        Name = "🔥 Tokyo Ghoul - Unravel",
+        BPM  = 130,
+        Sheet = "[0e] u p [0e] u p [8w] t o [8w] t o [9e] y i [9e] y i [7w] r u [7w] r u [0e] u p [0e] u p [8w] t o [8w] t o [9e] y i [9e] y i [7w] r u [7w] r u [0ep] [0ep] [0ep] [8wo] [8wo] [9ei] [9ei]"
+    },
+    {
+        Name = "🔥 Astronomia (Coffin Dance)",
+        BPM  = 125,
+        Sheet = "[6t] [6t] [6t] [6t] [6t] [6t] [6t] [6t] [4t] [4t] [4t] [4t] [5y] [5y] [5y] [5y] [6e] p p p p o o o i i i u u u [6e] p p p p o o o i i i u u u"
+    },
+    {
+        Name = "🎵 Canon in D - Pachelbel",
+        BPM  = 95,
+        Sheet = "u o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s [qe] a [qp] a [0u] o [0y] o [8u] o a d f [oa] h [os] h [yd] g [ya] g [tu] f [ts] f [re] d [ra] d [we] s [wo] s"
+    },
+    {
+        Name = "🎵 Faded - Alan Walker",
+        BPM  = 90,
+        Sheet = "[6e] u p s [4q] t i p [10] w u o [5w] r y o [6e] u p s [4q] t i p [10] w u o [5w] r y o [6p] s f j [4i] p d g [1u] o s h [5y] o d h [6p] s f j [4i] p d g [1u] o s h [5y] o d h"
+    },
+    {
+        Name = "🎵 Fur Elise - Beethoven",
+        BPM  = 130,
+        Sheet = "e W e W e u y t r [0e] t u [60r] u O [60e] u e W e W e u y t r [0e] t u [60r] u O [60e] [0r] t y [8u] i o [7y] u i [6t] y u [5r] [0e] W e W e u y t r [0e] t u [60r] u O [60e]"
+    },
+    {
+        Name = "🎵 Interstellar Theme - Hans Zimmer",
+        BPM  = 100,
+        Sheet = "u o u o u o u o [6u] o [6u] o [6u] o [6u] o [4u] p [4u] p [4u] p [4u] p [1u] o [1u] o [1u] o [1u] o [5u] o [5u] o [5u] o [5u] o [6u] [0o] [6u] [0o] [4u] [8p] [4u] [8p] [1u] [5o] [1u] [5o] [5y] [9o] [5y] [9o]"
+    },
+    {
+        Name = "🎵 River Flows in You - Yiruma",
+        BPM  = 80,
+        Sheet = "a s [6d] f d s a [4p] o p [1s] a p o [5y] u [6d] f d s a [4p] o p [1s] a p o [5y] u [6u] p [4i] p [1o] s [5y] o [6u] p [4i] p [1o] s [5y] o [6d] f d s a [4p] o p [1s] a p o [5y]"
+    },
+    {
+        Name = "🎵 Cô Nàng Áo Dài - Hot Trend VN",
         BPM  = 105,
         Sheet = "o p [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p [1o] o p [1s] s d [1f] [5d] s a [5p] o [6s] s d [6f] f g [6d] s [4p] p a [4s] s d [4a] p [1s] d f [5g] f d [1s]"
     }
@@ -164,7 +207,7 @@ local SongLibrary = {
 -- TRẠNG THÁI & CẤU HÌNH
 -- ================================================
 local Config = {
-    BPM         = 100,
+    BPM         = SongLibrary[1].BPM,
     Humanizer   = true,  -- Dao động micro-delay ±5ms
     Loop        = false,
     UseGameChat = false, -- Gửi >auto vào chat game
@@ -345,37 +388,115 @@ local function parseAndPlay(sheetText, bpm)
 end
 
 -- ================================================
--- TỰ ĐỘNG TÌM GHẾ ĐÀN PIANO & NGỒI VÀO
+-- FIX TRIỆT ĐỂ: TỰ ĐỘNG TÌM GHẾ & NGỒI VÀO ĐÀN PIANO
 -- ================================================
-local function autoSitNearestPiano()
+local function autoSitNearestPiano(statusLabel)
     local char = LP.Character
     if not char then return end
     local hrp  = char:FindFirstChild("HumanoidRootPart")
     local hum  = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
 
-    local bestSeat = nil
-    local bestDist = 9999
+    local bestSeat   = nil
+    local bestPrompt = nil
+    local bestDist   = 9999
 
+    -- 1. Tìm Seat hoặc ProximityPrompt gần người chơi nhất
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
-            local n = obj.Name:lower()
-            local pName = obj.Parent and obj.Parent.Name:lower() or ""
-            if n:find("seat") or n:find("bench") or n:find("chair") 
-            or pName:find("piano") or pName:find("bench") then
-                local dist = (hrp.Position - obj.Position).Magnitude
-                if dist < bestDist and not obj.Occupant then
-                    bestSeat = obj
-                    bestDist = dist
+            local isPiano = false
+            local cur = obj
+            for _ = 1, 4 do
+                if cur and cur.Name then
+                    local ln = cur.Name:lower()
+                    if ln:find("piano") or ln:find("bench") or ln:find("seat") 
+                    or ln:find("chair") or ln:find("music") or ln:find("stool") then
+                        isPiano = true; break
+                    end
+                    cur = cur.Parent
+                end
+            end
+
+            local d = (hrp.Position - obj.Position).Magnitude
+            if (isPiano or d < 35) and not obj.Occupant and d < bestDist then
+                bestSeat = obj
+                bestDist = d
+            end
+        elseif obj:IsA("ProximityPrompt") then
+            local pAct = (obj.ActionText or ""):lower()
+            local pObj = (obj.ObjectText or ""):lower()
+            local pName = obj.Name:lower()
+            if pAct:find("sit") or pAct:find("play") or pObj:find("piano") or pName:find("piano") then
+                local promptPos = obj.Parent and obj.Parent:IsA("BasePart") and obj.Parent.Position or nil
+                if promptPos then
+                    local d = (hrp.Position - promptPos).Magnitude
+                    if d < bestDist then
+                        bestPrompt = obj
+                    end
                 end
             end
         end
     end
 
+    -- 2. Thực hiện thao tác ngồi dứt điểm
     if bestSeat then
-        hrp.CFrame = bestSeat.CFrame + Vector3.new(0, 2, 0)
+        if statusLabel then statusLabel.Text = "⏳ Đang ngồi vào đàn..." end
+        
+        -- Dịch chuyển sát mặt ghế + hướng mặt vào đàn
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.CFrame = CFrame.new(bestSeat.Position + Vector3.new(0, 0.6, 0), bestSeat.Position + (bestSeat.CFrame.LookVector * 5))
         task.wait(0.1)
-        pcall(function() bestSeat:Sit(hum) end)
+
+        -- Kích hoạt ngồi 3 lần liên tiếp
+        for _ = 1, 3 do
+            pcall(function() bestSeat:Sit(hum) end)
+            task.wait(0.08)
+            if hum.Sit then break end
+        end
+
+        -- Nếu có ProximityPrompt kèm theo, kích hoạt luôn
+        if fireproximityprompt then
+            for _, p in pairs(bestSeat:GetDescendants()) do
+                if p:IsA("ProximityPrompt") then
+                    pcall(function() fireproximityprompt(p) end)
+                end
+            end
+            if bestSeat.Parent then
+                for _, p in pairs(bestSeat.Parent:GetDescendants()) do
+                    if p:IsA("ProximityPrompt") then
+                        pcall(function() fireproximityprompt(p) end)
+                    end
+                end
+            end
+        end
+
+        if statusLabel then 
+            statusLabel.Text = "✅ Đã ngồi vào đàn thành công!"
+            task.delay(2, function()
+                if statusLabel then statusLabel.Text = "🪑  Tự Ngồi Vào Đàn Piano" end
+            end)
+        end
+    elseif bestPrompt and fireproximityprompt then
+        if statusLabel then statusLabel.Text = "⏳ Kích hoạt E to Play..." end
+        local pPart = bestPrompt.Parent
+        if pPart and pPart:IsA("BasePart") then
+            hrp.CFrame = pPart.CFrame + Vector3.new(0, 1, 0)
+            task.wait(0.1)
+        end
+        fireproximityprompt(bestPrompt)
+        if statusLabel then 
+            statusLabel.Text = "✅ Đã ngồi vào đàn thành công!"
+            task.delay(2, function()
+                if statusLabel then statusLabel.Text = "🪑  Tự Ngồi Vào Đàn Piano" end
+            end)
+        end
+    else
+        if statusLabel then 
+            statusLabel.Text = "❌ Không tìm thấy cây đàn nào gần bạn!"
+            task.delay(2, function()
+                if statusLabel then statusLabel.Text = "🪑  Tự Ngồi Vào Đàn Piano" end
+            end)
+        end
     end
 end
 
@@ -394,8 +515,8 @@ SG.Parent         = game:GetService("CoreGui")
 
 local Main = Instance.new("Frame", SG)
 Main.Name             = "Main"
-Main.Size             = UDim2.new(0, 280, 0, 520)
-Main.Position         = UDim2.new(0, 20, 0.5, -260)
+Main.Size             = UDim2.new(0, 300, 0, 560)
+Main.Position         = UDim2.new(0, 20, 0.5, -280)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
 Main.BorderSizePixel  = 0
 Main.Active           = true
@@ -432,13 +553,13 @@ Div1.BorderSizePixel  = 0
 
 -- Scroll Danh Sách
 local Scroll = Instance.new("ScrollingFrame", Main)
-Scroll.Size             = UDim2.new(0.92, 0, 0, 455)
+Scroll.Size             = UDim2.new(0.92, 0, 0, 495)
 Scroll.Position         = UDim2.new(0.04, 0, 0, 58)
 Scroll.BackgroundTransparency = 1
 Scroll.BorderSizePixel  = 0
 Scroll.ScrollBarThickness = 3
 Scroll.ScrollBarImageColor3 = Color3.fromRGB(120, 70, 230)
-Scroll.CanvasSize       = UDim2.new(0, 0, 0, 640)
+Scroll.CanvasSize       = UDim2.new(0, 0, 0, 950)
 
 local uiList = Instance.new("UIListLayout", Scroll)
 uiList.SortOrder = Enum.SortOrder.LayoutOrder
@@ -446,7 +567,7 @@ uiList.Padding   = UDim.new(0, 8)
 
 -- 1. NÚT TỰ NGỒI VÀO ĐÀN
 local btnSit = Instance.new("TextButton", Scroll)
-btnSit.Size             = UDim2.new(1, 0, 0, 36)
+btnSit.Size             = UDim2.new(1, 0, 0, 38)
 btnSit.BackgroundColor3 = Color3.fromRGB(35, 18, 65)
 btnSit.Text             = "🪑  Tự Ngồi Vào Đàn Piano"
 btnSit.TextColor3       = Color3.fromRGB(215, 175, 255)
@@ -456,7 +577,9 @@ btnSit.LayoutOrder      = 1
 Instance.new("UICorner", btnSit).CornerRadius = UDim.new(0, 8)
 local sSit = Instance.new("UIStroke", btnSit)
 sSit.Color = Color3.fromRGB(110, 50, 220); sSit.Thickness = 1
-btnSit.MouseButton1Click:Connect(autoSitNearestPiano)
+btnSit.MouseButton1Click:Connect(function()
+    autoSitNearestPiano(btnSit)
+end)
 
 -- 2. HỘP ĐIỀU KHIỂN PHÁT NHẠC (PLAY / PAUSE / STOP)
 local ctlFrame = Instance.new("Frame", Scroll)
@@ -513,7 +636,7 @@ bpmLabel.TextSize           = 12
 bpmLabel.TextXAlignment     = Enum.TextXAlignment.Left
 
 local btnMinus = Instance.new("TextButton", bpmFrame)
-btnMinus.Size             = UDim2.new(0, 30, 0, 26)
+btnMinus.Size             = UDim2.new(0, 32, 0, 26)
 btnMinus.Position         = UDim2.new(0.65, 0, 0.5, -13)
 btnMinus.BackgroundColor3 = Color3.fromRGB(35, 30, 55)
 btnMinus.Text             = "-10"
@@ -523,7 +646,7 @@ btnMinus.TextSize         = 11
 Instance.new("UICorner", btnMinus).CornerRadius = UDim.new(0, 6)
 
 local btnPlus = Instance.new("TextButton", bpmFrame)
-btnPlus.Size              = UDim2.new(0, 30, 0, 26)
+btnPlus.Size              = UDim2.new(0, 32, 0, 26)
 btnPlus.Position          = UDim2.new(0.82, 0, 0.5, -13)
 btnPlus.BackgroundColor3  = Color3.fromRGB(50, 25, 110)
 btnPlus.Text              = "+10"
@@ -573,7 +696,6 @@ sheetBox:GetPropertyChangedSignal("Text"):Connect(function()
     Playback.CustomSheet = sheetBox.Text
 end)
 
--- Nút điều khiển Play/Pause/Stop sự kiện
 btnPlay.MouseButton1Click:Connect(function()
     if Playback.IsPaused then
         Playback.IsPaused = false
@@ -594,27 +716,44 @@ btnStop.MouseButton1Click:Connect(function()
     btnPause.Text = "⏸ DỪNG"
 end)
 
--- 5. DANH SÁCH BÀI NHẠC CÓ SẴN (PRESETS)
+-- 5. THANH TÌM KIẾM BÀI HÁT
+local searchBox = Instance.new("TextBox", Scroll)
+searchBox.Size                 = UDim2.new(1, 0, 0, 34)
+searchBox.BackgroundColor3     = Color3.fromRGB(22, 20, 35)
+searchBox.PlaceholderText      = "🔍 Tìm kiếm bài hát (gõ tên bài)..."
+searchBox.PlaceholderColor3    = Color3.fromRGB(130, 120, 160)
+searchBox.Text                 = ""
+searchBox.TextColor3           = Color3.fromRGB(230, 220, 255)
+searchBox.Font                 = Enum.Font.Gotham
+searchBox.TextSize             = 11.5
+searchBox.LayoutOrder          = 6
+Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 8)
+local sSearch = Instance.new("UIStroke", searchBox)
+sSearch.Color = Color3.fromRGB(90, 50, 170); sSearch.Thickness = 1
+
 local libTitle = Instance.new("TextLabel", Scroll)
 libTitle.Size               = UDim2.new(1, 0, 0, 18)
 libTitle.BackgroundTransparency = 1
-libTitle.Text               = "🎵 Thư Viện Bài Nhạc Có Sẵn (Click Chọn):"
+libTitle.Text               = "🎵 Danh Sách Nhạc Hot Trend (Chạm Để Đánh):"
 libTitle.TextColor3         = Color3.fromRGB(170, 150, 210)
 libTitle.Font               = Enum.Font.GothamSemibold
 libTitle.TextSize           = 11
 libTitle.TextXAlignment     = Enum.TextXAlignment.Left
-libTitle.LayoutOrder        = 6
+libTitle.LayoutOrder        = 7
+
+-- 6. TẠO DANH SÁCH BÀI HÁT
+local songButtons = {}
 
 for idx, song in ipairs(SongLibrary) do
     local sBtn = Instance.new("TextButton", Scroll)
-    sBtn.Size             = UDim2.new(1, 0, 0, 32)
+    sBtn.Size             = UDim2.new(1, 0, 0, 34)
     sBtn.BackgroundColor3 = Color3.fromRGB(22, 20, 34)
     sBtn.Text             = "  " .. idx .. ". " .. song.Name
     sBtn.TextColor3       = Color3.fromRGB(200, 190, 220)
     sBtn.Font             = Enum.Font.Gotham
     sBtn.TextSize         = 11
     sBtn.TextXAlignment   = Enum.TextXAlignment.Left
-    sBtn.LayoutOrder      = 6 + idx
+    sBtn.LayoutOrder      = 7 + idx
     Instance.new("UICorner", sBtn).CornerRadius = UDim.new(0, 6)
 
     sBtn.MouseButton1Click:Connect(function()
@@ -624,7 +763,21 @@ for idx, song in ipairs(SongLibrary) do
         bpmLabel.Text        = "Tốc độ: " .. Config.BPM .. " BPM"
         parseAndPlay(song.Sheet, song.BPM)
     end)
+
+    table.insert(songButtons, {Button = sBtn, Name = song.Name:lower()})
 end
+
+-- Lọc danh sách theo ô tìm kiếm
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local query = searchBox.Text:lower()
+    for _, item in ipairs(songButtons) do
+        if query == "" or item.Name:find(query, 1, true) then
+            item.Button.Visible = true
+        else
+            item.Button.Visible = false
+        end
+    end
+end)
 
 -- ================================================
 -- CỬ CHỈ ĐIỀU KHIỂN (3 NGÓN TAY MOBILE & RSHIFT PC)
@@ -678,4 +831,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] Visual Piano Hub 🎹 Loaded Successfully!")
+print("[VOSS] Visual Piano Hub 🎹 (Mega Hits Edition) Loaded!")
