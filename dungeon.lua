@@ -1,14 +1,22 @@
 -- ================================================
--- VOSS | Dungeon Hunters Hub v6.0 (YouTube-Grade Auto Farm Edition)
+-- VOSS | Dungeon Hunters Hub v7.0 (Multi-Place Auto Teleport Edition)
 -- Game: Thợ Săn Hầm Ngục [UPD] - The Evac Syndicate
+-- Universe ID: 8937254139 | Lobby Place: 120217704230083 | DH: World 1: 121902496311296
 -- ================================================
--- [TỰ ĐỘNG TREO MÁY CHUẨN YOUTUBE - 100% HOẠT ĐỘNG]:
--- 1. UNIVERSAL MOB DETECTION: Quét quái toàn diện mọi folder (Live, NPCs, Enemies, workspace).
--- 2. NOCLIP GLIDE PATHING: Lướt mượt mà xuyên vật cản đến sát lưng quái, KHÔNG BAO GIỜ BỊ KẸT CHÂN.
--- 3. KILL AURA & AUTO COMBAT: Đứng sau lưng quái chém trúng 100%, tự xả skill, không click tâm màn hình.
--- 4. AUTO NEXT ROOM & CHEST: Hết quái tự nhặt rương -> Tự lướt qua cửa phòng kế -> Tự vote/kích hoạt.
--- 5. AUTO LOBBY PORTAL: Ở sảnh tự tìm cổng/pad -> Tự bước vào -> Tự chọn cấp -> Tự bấm Start/Solo.
--- 6. AUTO REPLAY: Thắng trận tự bấm Replay tạo vòng lặp vô tận.
+-- [ĐỘT PHÁ TRIỆT ĐỂ BẢN v7.0 - XÓA BỎ LỖI MẤT SCRIPT KHI LOAD MAP]:
+-- 1. TỰ ĐỘNG CHUYỂN TIẾP SCRIPT KHI TELEPORT (QUEUE ON TELEPORT):
+--    - Tự động duy trì script khi load vào "DH: Thế giới 1" (World 1..5) và khi Replay.
+--    - Không bao giờ bị mất script hay dừng hoạt động khi chuyển map.
+-- 2. TỰ ĐỘNG LƯU TRẠNG THÁI (STATE PERSISTENCE):
+--    - Bật "AUTO TREO MÁY" ở sảnh -> Load sang Thế Giới 1 tự động BẬT và CÀY TIẾP 100%.
+-- 3. NHẬN DIỆN MAP CHÍNH XÁC THEO PLACEID:
+--    - Ở Sảnh (PlaceId: 120217704230083): Tự lướt vào cổng -> Tự chọn Cấp -> Tự Start vào map.
+--    - Ở Thế Giới 1 (PlaceId: 121902496311296..): Tự động farm quái ngay lập tức!
+-- 4. NOCLIP GLIDE PATHING & UNIVERSAL MOB SCANNER:
+--    - Lướt mượt mà xuyên vật cản đến sát lưng quái, không kẹt bậc thang hay cửa.
+--    - Quét quái toàn diện mọi folder trong workspace.
+-- 5. QUA PHÒNG TIẾP THEO & REPLAY VÔ TẬN:
+--    - Dọn sạch phòng -> Tự nhặt rương -> Tự bước qua cửa phòng kế -> Diệt Boss -> Tự Replay.
 -- ================================================
 
 local Players           = game:GetService("Players")
@@ -16,9 +24,12 @@ local RunService        = game:GetService("RunService")
 local UserInputService  = game:GetService("UserInputService")
 local VirtualInputMgr   = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService      = game:GetService("TweenService")
+local HttpService       = game:GetService("HttpService")
 local LP                = Players.LocalPlayer
 local Cam               = workspace.CurrentCamera
+
+local LOBBY_PLACE_ID    = 120217704230083
+local isLobbyPlace      = (game.PlaceId == LOBBY_PLACE_ID)
 
 -- Trạng thái toàn cục
 local State = {
@@ -37,17 +48,87 @@ local State = {
     esp_mobs      = false,
     esp_chests    = false,
     targetLevel   = "AUTO", -- "AUTO", "1", "2", "3", "4", "5"
-    statusText    = "Sẵn sàng hoạt động!",
+    statusText    = isLobbyPlace and "📍 Đang ở Sảnh Chờ (Lobby)" or "⚔️ Đang trong ải hầm ngục",
 }
 
 local CFG = {
     walkspeed   = 55,
     flyspeed    = 50,
-    glideSpeed  = 45,   -- Tốc độ lướt di chuyển
+    glideSpeed  = 45,
     m1Delay     = 0.12,
     skillDelay  = 1.4,
     dashDelay   = 4.0,
 }
+
+-- ================================================
+-- HỆ THỐNG LƯU TRẠNG THÁI & CHUYỂN TIẾP TELEPORT
+-- ================================================
+local SAVE_FILE = "VOSS_Dungeon_Settings.json"
+
+local function saveSettings()
+    if writefile then
+        pcall(function()
+            local data = {
+                autoafk    = State.autoafk,
+                autofarm   = State.autofarm,
+                autoboss   = State.autoboss,
+                autoskill  = State.autoskill,
+                autodash   = State.autodash,
+                autodoor   = State.autodoor,
+                autochest  = State.autochest,
+                autoreplay = State.autoreplay,
+                noclip     = State.noclip,
+                speed      = State.speed,
+                targetLevel= State.targetLevel,
+            }
+            writefile(SAVE_FILE, HttpService:JSONEncode(data))
+        end)
+    end
+end
+
+local function loadSettings()
+    if readfile and isfile and isfile(SAVE_FILE) then
+        pcall(function()
+            local content = readfile(SAVE_FILE)
+            local data = HttpService:JSONDecode(content)
+            if data and type(data) == "table" then
+                for k, v in pairs(data) do
+                    if State[k] ~= nil then
+                        State[k] = v
+                    end
+                end
+            end
+        end)
+    end
+end
+loadSettings()
+
+-- Nếu đang ở trong ải hầm ngục (không phải sảnh) và đã từng bật autoafk thì luôn kích hoạt farm
+if not isLobbyPlace then
+    State.autofarm = true
+    if State.autoafk then
+        State.statusText = "⚔️ Đã vào map ải! Đang tự động cày quái..."
+    end
+end
+
+-- Tự động kích hoạt lại script khi Roblox Teleport sang Map Mới
+local function setupQueueOnTeleport()
+    local loaderUrl = "https://raw.githubusercontent.com/Dellyhihi/VOSS-Hub/main/loader.lua"
+    local execString = string.format('loadstring(game:HttpGet("%s"))()', loaderUrl)
+    local qot = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+
+    if qot then
+        pcall(function() qot(execString) end)
+    end
+
+    LP.OnTeleport:Connect(function()
+        saveSettings()
+        if qot then
+            pcall(function() qot(execString) end)
+        end
+    end)
+end
+setupQueueOnTeleport()
 
 -- Quản lý Nhân Vật
 local Char, HRP, Hum
@@ -97,7 +178,7 @@ LP.CharacterAdded:Connect(function(newChar)
     setupCharacter(newChar)
 end)
 
--- Noclip tự động khi Auto Farm để không bao giờ bị kẹt cửa / bậc thang
+-- Noclip tự động khi Auto Farm để không bao giờ bị kẹt
 RunService.Stepped:Connect(function()
     if (State.autoafk or State.autofarm) and State.noclip and Char then
         for _, part in ipairs(Char:GetDescendants()) do
@@ -156,7 +237,6 @@ local function glideTo(targetPos, stopDist, maxSeconds)
             return true
         end
 
-        -- Lướt thẳng mượt mà về hướng đích (xuyên qua vật cản)
         local stepSpeed = math.min(CFG.glideSpeed, dist * 6)
         local dir = diff.Unit
         local nextPos = curPos + (dir * (stepSpeed * 0.05))
@@ -208,10 +288,10 @@ local function getAllRealEnemies()
 
         if mHum and mHRP and mHum.Health > 0 then
             local dist = (myPos - mHRP.Position).Magnitude
-            if dist > 350 then return end -- Bỏ qua quái ở quá xa
+            if dist > 350 then return end
 
             local yDiff = math.abs(mHRP.Position.Y - myPos.Y)
-            if yDiff > 35 then return end -- Bỏ qua quái trên trời/dưới lòng đất
+            if yDiff > 35 then return end
 
             seen[model] = true
             local isBoss = false
@@ -238,7 +318,7 @@ local function getAllRealEnemies()
         end
     end
 
-    -- 2. Quét bên trong container Dungeon / Rooms / Map
+    -- 2. Quét bên trong container Dungeon / Rooms / Map / World
     for _, cName in ipairs({"Dungeon", "Rooms", "Map", "World"}) do
         local c = workspace:FindFirstChild(cName)
         if c then
@@ -251,7 +331,7 @@ local function getAllRealEnemies()
         end
     end
 
-    -- 3. Quét trực tiếp workspace gốc (dành cho game để quái thẳng ngoài workspace)
+    -- 3. Quét trực tiếp workspace gốc
     for _, child in ipairs(workspace:GetChildren()) do
         if child:IsA("Model") then
             inspectModel(child)
@@ -496,7 +576,6 @@ end
 -- TỰ ĐỘNG Ở SẢNH (LOBBY AUTOMATION)
 -- ================================================
 local function findLobbyEntrance()
-    -- 1. Tìm bất kỳ ProximityPrompt nào ở sảnh liên quan đến vào hầm ngục
     for _, prompt in ipairs(workspace:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             local pText = (prompt.ActionText .. " " .. prompt.ObjectText):lower()
@@ -507,7 +586,6 @@ local function findLobbyEntrance()
         end
     end
 
-    -- 2. Tìm BasePart của Cổng hoặc Pad
     local bestPart = nil
     local bestScore = 0
 
@@ -625,67 +703,59 @@ end
 -- ================================================
 -- LUỒNG ĐIỀU PHỐI CHÍNH (MASTER AUTO FARM LOOP)
 -- ================================================
-local inDungeonPhase = false
-
 task.spawn(function()
     while true do
         task.wait(0.15)
-        if not State.autoafk and not State.autofarm then continue end
         if not HRP or not Hum or Hum.Health <= 0 then continue end
 
-        local enemies = getAllRealEnemies()
-
-        -- 1. TRONG HẦM NGỤC: CÒN QUÁI -> DIỆT QUÁI
-        if #enemies > 0 then
-            inDungeonPhase = true
-
-            -- Ưu tiên Boss nếu bật autoboss
-            local target = enemies[1]
-            if State.autoboss then
-                for _, e in ipairs(enemies) do
-                    if e.boss then target = e; break end
-                end
+        -- PHÂN BIỆT RÕ RÀNG: Ở SẢNH CHỜ HAY TRONG ẢI HẦM NGỤC
+        if isLobbyPlace then
+            -- 1. TRƯỜNG HỢP: ĐANG Ở SẢNH CHỜ (LOBBY PLACE)
+            if State.autoafk then
+                runLobbyEnter()
             end
+        else
+            -- 2. TRƯỜNG HỢP: ĐANG TRONG ẢI (THẾ GIỚI 1, 2, 3...)
+            if State.autoafk or State.autofarm then
+                local enemies = getAllRealEnemies()
 
-            if target and target.root and target.hum and target.hum.Health > 0 then
-                local mobRoot = target.root
-                local mobCF   = mobRoot.CFrame
-                local mobPos  = mobRoot.Position
-                local myPos   = HRP.Position
+                if #enemies > 0 then
+                    -- Còn quái -> Lướt áp sát sau lưng chém diệt quái
+                    local target = enemies[1]
+                    if State.autoboss then
+                        for _, e in ipairs(enemies) do
+                            if e.boss then target = e; break end
+                        end
+                    end
 
-                State.statusText = "⚔️ Đang diệt: " .. target.model.Name .. " (HP: " .. math.floor(target.hum.Health) .. " • Còn " .. #enemies .. " quái)"
+                    if target and target.root and target.hum and target.hum.Health > 0 then
+                        local mobRoot = target.root
+                        local mobCF   = mobRoot.CFrame
+                        local mobPos  = mobRoot.Position
+                        local myPos   = HRP.Position
 
-                -- Vị trí đứng sau lưng quái 2.5 studs (ngang mặt sàn của quái)
-                local behindPos = mobPos - (mobCF.LookVector * 2.5)
-                behindPos = Vector3.new(behindPos.X, mobPos.Y, behindPos.Z)
+                        State.statusText = "⚔️ Diệt: " .. target.model.Name .. " (HP: " .. math.floor(target.hum.Health) .. " • Còn " .. #enemies .. " quái)"
 
-                local dist = (myPos - behindPos).Magnitude
-                if dist > 4.5 then
-                    -- Lướt nhanh xuyên vật cản đến sau lưng quái
-                    glideTo(behindPos, 3.5, 2.5)
+                        local behindPos = mobPos - (mobCF.LookVector * 2.5)
+                        behindPos = Vector3.new(behindPos.X, mobPos.Y, behindPos.Z)
+
+                        local dist = (myPos - behindPos).Magnitude
+                        if dist > 4.5 then
+                            glideTo(behindPos, 3.5, 2.5)
+                        else
+                            HRP.AssemblyLinearVelocity = Vector3.zero
+                            HRP.CFrame = CFrame.lookAt(behindPos, Vector3.new(mobPos.X, behindPos.Y, mobPos.Z))
+                        end
+
+                        attackTarget(target.model, mobRoot)
+                    end
                 else
-                    -- Áp sát: Khóa góc nhìn trực diện quái
-                    HRP.AssemblyLinearVelocity = Vector3.zero
-                    HRP.CFrame = CFrame.lookAt(behindPos, Vector3.new(mobPos.X, behindPos.Y, mobPos.Z))
+                    -- Sạch quái phòng -> Nhặt rương -> Sang cửa phòng tiếp theo -> Bấm Replay
+                    if State.autochest then lootChest() end
+                    if State.autodoor  then advanceNextRoom() end
+                    if State.autoreplay then clickReplayButton() end
                 end
-
-                attackTarget(target.model, mobRoot)
             end
-            continue
-        end
-
-        -- 2. TRONG HẦM NGỤC: SẠCH QUÁI PHÒNG -> NHẶT RƯƠNG & QUA PHÒNG KẾ & REPLAY
-        if inDungeonPhase and #enemies == 0 then
-            if State.autochest then lootChest() end
-            if State.autodoor  then advanceNextRoom() end
-            if State.autoreplay then clickReplayButton() end
-            continue
-        end
-
-        -- 3. Ở SẢNH CHỜ -> TỰ ĐỘNG VÀO HẦM NGỤC
-        if not inDungeonPhase and State.autoafk then
-            runLobbyEnter()
-            continue
         end
     end
 end)
@@ -1007,7 +1077,7 @@ local Title = Instance.new("TextLabel", Header)
 Title.Size               = UDim2.new(1, -50, 0, 26)
 Title.Position           = UDim2.new(0, 16, 0, 4)
 Title.BackgroundTransparency = 1
-Title.Text               = "VOSS | Thợ Săn Hầm Ngục v6 ⚔️"
+Title.Text               = "VOSS | Thợ Săn Hầm Ngục v7 ⚔️"
 Title.TextColor3         = Color3.fromRGB(220, 180, 255)
 Title.Font               = Enum.Font.GothamBold
 Title.TextSize           = 14
@@ -1017,8 +1087,8 @@ local SubTitle = Instance.new("TextLabel", Header)
 SubTitle.Size               = UDim2.new(1, -50, 0, 16)
 SubTitle.Position           = UDim2.new(0, 16, 0, 28)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text               = "YouTube-Grade Auto Farm • Noclip Glide"
-SubTitle.TextColor3         = Color3.fromRGB(130, 120, 170)
+SubTitle.Text               = isLobbyPlace and "📍 Map: Sảnh Chờ (Lobby)" or ("⚔️ Map: " .. (game.PlaceId == 121902496311296 and "DH: Thế Giới 1" or "Hầm Ngục"))
+SubTitle.TextColor3         = isLobbyPlace and Color3.fromRGB(130, 200, 255) or Color3.fromRGB(255, 170, 100)
 SubTitle.Font               = Enum.Font.Gotham
 SubTitle.TextSize           = 10
 SubTitle.TextXAlignment     = Enum.TextXAlignment.Left
@@ -1182,6 +1252,7 @@ local function createMasterToggle(title, desc, defaultState, callback, order)
         switch.BackgroundColor3 = state and Color3.fromRGB(160, 60, 255) or Color3.fromRGB(50, 40, 70)
         stroke.Color = state and Color3.fromRGB(200, 100, 255) or Color3.fromRGB(120, 60, 200)
         callback(state)
+        saveSettings()
     end)
     return f
 end
@@ -1234,6 +1305,7 @@ local function createToggle(title, desc, defaultState, callback, order)
         switch.BackgroundColor3 = state and Color3.fromRGB(130, 60, 240) or Color3.fromRGB(40, 35, 55)
         stroke.Color = state and Color3.fromRGB(130, 70, 240) or Color3.fromRGB(45, 40, 65)
         callback(state)
+        saveSettings()
     end)
     return f
 end
@@ -1284,6 +1356,7 @@ local function createLevelSelector(order)
             for _, ob in pairs(levelBtns) do ob.BackgroundColor3 = Color3.fromRGB(38, 32, 58) end
             b.BackgroundColor3 = Color3.fromRGB(130, 60, 240)
             State.statusText = "Đã chọn cấp độ: " .. lvl
+            saveSettings()
         end)
         table.insert(levelBtns, b)
     end
@@ -1300,7 +1373,7 @@ createCategory("🚀 CHẾ ĐỘ TREO MÁY TOÀN DIỆN (AFK FOREVER)", 1)
 createMasterToggle("⚡ AUTO TREO MÁY TOÀN DIỆN", "Tự vào map sảnh -> Tự cày quái -> Tự qua ải -> Tự Replay lặp vô tận", State.autoafk, function(val)
     State.autoafk = val
     if val then
-        State.statusText = "Bắt đầu chu trình treo máy toàn diện!"
+        State.statusText = isLobbyPlace and "Bắt đầu chu trình vào hầm ngục..." or "Bắt đầu tự động cày quái ải..."
     else
         State.statusText = "Đã tạm dừng treo máy."
     end
@@ -1311,13 +1384,15 @@ createLevelSelector(3)
 -- NÚT THAO TÁC NHANH SẢNH & ẢI
 createCategory("⚡ THAO TÁC NHANH (INSTANT ACTIONS)", 5)
 
-createActionButton("Dịch Chuyển Vào Cổng Sảnh", "Lướt ngay tới cổng và mở bảng hầm ngục", "VÀO CỔNG", function()
-    runLobbyEnter()
-end, 6)
-
-createActionButton("Lướt Qua Cửa Phòng Kế", "Bỏ qua phòng hiện tại, lướt qua cửa phòng kế tiếp", "QUA CỬA", function()
-    advanceNextRoom()
-end, 7)
+if isLobbyPlace then
+    createActionButton("Dịch Chuyển Vào Cổng Sảnh", "Lướt ngay tới cổng và mở bảng hầm ngục", "VÀO CỔNG", function()
+        runLobbyEnter()
+    end, 6)
+else
+    createActionButton("Lướt Qua Cửa Phòng Kế", "Bỏ qua phòng hiện tại, lướt qua cửa phòng kế tiếp", "QUA CỬA", function()
+        advanceNextRoom()
+    end, 6)
+end
 
 -- CÀY CẤP & CHIẾN ĐẤU CHI TIẾT
 createCategory("⚔️ TÙY CHỌN CHIẾN ĐẤU & QUA ẢI", 10)
@@ -1430,4 +1505,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] Dungeon Hunters Hub v6.0 (YouTube-Grade Auto Farm) Loaded Successfully! ⚔️")
+print(string.format("[VOSS] Dungeon Hunters Hub v7.0 Loaded! Place: %s (%s) ⚔️", tostring(game.PlaceId), isLobbyPlace and "Lobby" or "Dungeon World"))
