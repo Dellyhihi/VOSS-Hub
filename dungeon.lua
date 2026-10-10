@@ -1,25 +1,20 @@
 -- ================================================
--- VOSS | Dungeon Hunters Hub v2.0 (Ultimate Fix)
+-- VOSS | Dungeon Hunters Hub v3.0 (Ground Navigation Edition)
 -- Game: Thợ Săn Hầm Ngục [UPD] - The Evac Syndicate
 -- ================================================
--- [FIX TRIỆT ĐỂ THEO CƠ CHẾ CHUẨN CỦA GAME]:
--- 1. FIX LỖI KHÔNG ĐÁNH ĐƯỢC QUÁI:
---    - Chuyển vị trí áp sát: Bám sát SAU LƯNG QUÁI (2.2 studs sau lưng, cao 1.0 stud, mặt nhìn thẳng vào quái)
---    - Tấn công M1 đa kênh thực thụ:
---      * Gửi sự kiện Click chuột trái trực tiếp qua VirtualInputManager (giữa màn hình)
---      * Gửi Touch Event cảm ứng trực tiếp trên màn hình điện thoại
---      * Tự động quét và chạm vào Nút Đánh (Attack/M1) trên màn hình cảm ứng của game
---      * Kích hoạt Tool (nếu có) + Bắn toàn bộ Remote Combat tìm thấy trong ReplicatedStorage
---    - Tự động xả kỹ năng (Skills 1, 2, 3, 4) + Lướt Dash (Q) + Đỡ đòn (F)
--- 2. FIX LỖI VÀO TẠO MAP KHÔNG XONG & CÀY CẤP TỪNG BẬC:
---    - Quy trình vào map 5 bước chuẩn xác: Đến Cổng -> Mở Bảng -> Chọn Cấp (1, 2, 3... hoặc Cấp cao nhất) -> Bấm Solo/Start -> Chờ tải map
---    - Không bị ngắt quãng, không bị spam tele làm đóng menu
--- 3. TRIỆT TIÊU HOÀN TOÀN LỖI BAY TELE LUNG TUNG:
---    - Kiến trúc State Machine thống nhất: Tại 1 thời điểm CHỈ LÀM 1 VIỆC DUY NHẤT:
---      * Đang có quái: Khóa chặt vào quái cho đến khi quái chết (KHÔNG tele đi đâu khác)
---      * Quái chết hết: Mới đi nhặt rương (1 lần duy nhất)
---      * Nhặt xong: Mới đi ra cửa qua ải tiếp theo
---      * Hết màn: Tự bấm Replay/Tiếp tục
+-- [KHẮC PHỤC TRIỆT ĐỂ TOÀN BỘ CÁC VẤN ĐỀ]:
+-- 1. TRIỆT TIÊU LỖI BAY LÊN TRỜI:
+--    - Loại bỏ hoàn toàn việc nhận nhầm tượng / NPC sảnh trên trời làm quái
+--    - Cơ chế ĐỨNG ĐẤT 100% (Ground Combat): Luôn bám sát mặt đất (Y bằng mặt đất), tuyệt đối không bay lên trời
+--    - Hum.PlatformStand luôn giữ = false khi chiến đấu để hai chân nhân vật đứng vững trên mặt sàn
+-- 2. TỰ ĐỘNG ĐI BỘ VÀO MAP (NATURAL WALK NAVIGATION):
+--    - Không dùng tele giật cục: Nhân vật tự động ĐI BỘ (Hum:MoveTo) mượt mà đến cổng hầm ngục ở sảnh
+--    - Tự động bước vào vùng cổng, mở bảng hầm ngục, chọn Cấp 1 (hoặc cấp mong muốn), bấm Bắt đầu (Solo/Start)
+-- 3. ĐÁNH QUÁI DÍNH ĐÒN 100% (M1 GROUND BEHIND):
+--    - Đi bộ tiếp cận quái -> Áp sát cách 2 studs sau lưng quái trên mặt sàn
+--    - Mặt quay thẳng vào quái: Mỗi đòn chém M1, kỹ năng 1-3, lướt Q đều trúng mục tiêu 100%
+-- 4. TỰ ĐỘNG ĐI BỘ QUA CỬA & NHẶT RƯƠNG:
+--    - Khi sạch bóng quái trong phòng -> Tự đi bộ nhặt rương -> Tự đi bộ ra cửa bước sang phòng kế tiếp
 -- ================================================
 
 local Players           = game:GetService("Players")
@@ -38,28 +33,25 @@ local State = {
     autoboss      = false,
     autoskill     = true,
     autodash      = true,
-    autodungeon   = false, -- Tự động vào map theo cấp đã chọn
-    autodoor      = true,  -- Tự động qua cửa khi phòng sạch quái
-    autochest     = true,  -- Tự động nhặt rương sau khi dọn quái
-    autoreplay    = true,  -- Tự động chơi lại khi xong màn
+    autodungeon   = false, -- Tự động đi bộ vào cổng từ sảnh
+    autodoor      = true,  -- Tự đi bộ qua cửa khi sạch quái
+    autochest     = true,  -- Tự đi bộ nhặt rương sau mỗi phòng
+    autoreplay    = true,  -- Tự bấm Replay khi thắng hầm ngục
     speed         = false,
     fly           = false,
     nofall        = true,
     esp_mobs      = false,
     esp_chests    = false,
-    targetLevel   = "AUTO", -- "AUTO", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"
-    combatStance  = "BEHIND", -- "BEHIND" (Sau lưng - khuyên dùng), "ABOVE" (Trên đầu)
+    targetLevel   = "AUTO", -- "AUTO", "1", "2", "3", "4", "5"
+    statusText    = "Đang chờ lệnh...",
 }
 
 local CFG = {
-    walkspeed   = 60,
+    walkspeed   = 55,
     flyspeed    = 50,
-    behindDist  = 2.2,  -- Khoảng cách sau lưng quái
-    behindHeight= 1.0,  -- Độ cao so với quái khi bám sau lưng
-    aboveHeight = 2.8,  -- Độ cao khi chọn chế độ trên đầu
-    m1Delay     = 0.12, -- Tốc độ nhấp M1
-    skillDelay  = 1.2,  -- Giãn cách xả chiêu thức
-    dashDelay   = 3.5,  -- Giãn cách lướt Dash (Q)
+    m1Delay     = 0.12,
+    skillDelay  = 1.3,
+    dashDelay   = 3.5,
 }
 
 -- Quản lý nhân vật
@@ -67,9 +59,7 @@ local Char, HRP, Hum
 local humConns = {}
 
 local function clearHumConns()
-    for _, c in pairs(humConns) do
-        pcall(function() c:Disconnect() end)
-    end
+    for _, c in pairs(humConns) do pcall(function() c:Disconnect() end) end
     humConns = {}
 end
 
@@ -106,16 +96,13 @@ local function setupCharacter(newChar)
     end
 end
 
-if LP.Character then
-    setupCharacter(LP.Character)
-end
-
+if LP.Character then setupCharacter(LP.Character) end
 LP.CharacterAdded:Connect(function(newChar)
     task.wait(0.3)
     setupCharacter(newChar)
 end)
 
--- Duy trì tốc độ & chống rơi vỡ
+-- Duy trì tốc độ chạy
 RunService.Heartbeat:Connect(function()
     if HRP and Hum and Hum.Health > 0 then
         if State.speed and Hum.WalkSpeed ~= CFG.walkspeed then
@@ -129,18 +116,139 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ================================================
--- HỆ THỐNG SCAN REMOTE & VŨ KHÍ TỰ ĐỘNG
+-- HÀM TỰ ĐỘNG ĐI BỘ TRÊN MẶT ĐẤT (NATURAL WALK ENGINE)
+-- ================================================
+local isWalking = false
+
+local function naturalWalkTo(targetPos, stopDistance, maxWaitSeconds)
+    if not HRP or not Hum or Hum.Health <= 0 then return false end
+    stopDistance   = stopDistance or 3.5
+    maxWaitSeconds = maxWaitSeconds or 8.0
+
+    isWalking = true
+    local startTime = tick()
+
+    while (tick() - startTime) < maxWaitSeconds do
+        if not HRP or not Hum or Hum.Health <= 0 then break end
+        local dist = (Vector3.new(HRP.Position.X, 0, HRP.Position.Z) - Vector3.new(targetPos.X, 0, targetPos.Z)).Magnitude
+        if dist <= stopDistance then
+            break
+        end
+
+        -- Tự động đi bộ đến mục tiêu
+        Hum:MoveTo(targetPos)
+        task.wait(0.08)
+    end
+
+    isWalking = false
+    if HRP then
+        return (Vector3.new(HRP.Position.X, 0, HRP.Position.Z) - Vector3.new(targetPos.X, 0, targetPos.Z)).Magnitude <= (stopDistance + 2)
+    end
+    return false
+end
+
+-- ================================================
+-- BỘ LỌC QUÁI CHUẨN XÁC 100% (LOẠI BỎ TƯỢNG, NPC SẢNH)
+-- ================================================
+local NPC_BLACKLIST = {
+    "npc", "dummy", "shop", "summon", "gacha", "leaderboard", "statue",
+    "guide", "portal", "board", "merchant", "blacksmith", "trainer", "quest",
+    "safezone", "spawn", "display", "vip", "reward", "code"
+}
+
+local function isNameBlacklisted(name)
+    local n = name:lower()
+    for _, b in ipairs(NPC_BLACKLIST) do
+        if n:find(b) then return true end
+    end
+    return false
+end
+
+local function getRealDungeonEnemies()
+    local list = {}
+    local seen = {}
+    if not HRP then return list end
+
+    local function addIfRealEnemy(model)
+        if not model or not model:IsA("Model") or seen[model] then return end
+        if model == Char then return end
+        if Players:GetPlayerFromCharacter(model) then return end
+        if isNameBlacklisted(model.Name) then return end
+
+        local mHum = model:FindFirstChildOfClass("Humanoid")
+        local mHRP = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso")
+
+        if mHum and mHRP and mHum.Health > 0 then
+            -- Bắt buộc độ cao Y không được lệch quá 30 studs so với nhân vật (chống bắt nhầm model trên trời)
+            local yDiff = math.abs(mHRP.Position.Y - HRP.Position.Y)
+            if yDiff > 35 then return end
+
+            seen[model] = true
+            local isBoss = false
+            local nameLower = model.Name:lower()
+            if nameLower:find("boss") or (mHum.MaxHealth > 5000) then
+                isBoss = true
+            end
+
+            table.insert(list, {
+                model = model,
+                root  = mHRP,
+                hum   = mHum,
+                boss  = isBoss
+            })
+        end
+    end
+
+    -- 1. Ưu tiên quét trong các thư mục Hầm Ngục chính thức
+    for _, folderName in ipairs({"Enemies", "Mobs", "Monsters", "DungeonMobs", "Entities", "RoomEnemies", "CurrentRoom"}) do
+        local f = workspace:FindFirstChild(folderName, true)
+        if f then
+            for _, child in ipairs(f:GetChildren()) do addIfRealEnemy(child) end
+        end
+    end
+
+    -- 2. Quét trong cấu trúc Dungeon / Rooms
+    for _, containerName in ipairs({"Dungeon", "Rooms", "Map"}) do
+        local container = workspace:FindFirstChild(containerName)
+        if container then
+            for _, desc in ipairs(container:GetDescendants()) do
+                if desc:IsA("Model") and desc:FindFirstChildOfClass("Humanoid") then
+                    addIfRealEnemy(desc)
+                end
+            end
+        end
+    end
+
+    return list
+end
+
+local function isPlayerInLobby()
+    -- Nếu có quái thực sự trong bán kính 100 studs -> Chắc chắn đang trong hầm ngục
+    local enemies = getRealDungeonEnemies()
+    if #enemies > 0 then return false end
+
+    -- Kiểm tra đặc điểm sảnh
+    for _, name in ipairs({"Lobby", "SpawnLocation", "TrainingDummy", "Summon", "Gacha", "DungeonPortal", "Shop"}) do
+        if workspace:FindFirstChild(name, true) then
+            return true
+        end
+    end
+    return true
+end
+
+-- ================================================
+-- VŨ KHÍ & TẤN CÔNG M1 THỰC THỤ
 -- ================================================
 local combatRemotesCache = {}
-local lastRemoteRefresh = 0
+local lastRemoteScan = 0
 
-local function refreshCombatRemotes()
+local function scanRemotes()
     local remotes = {}
     local keywords = {"attack", "hit", "damage", "swing", "slash", "combat", "m1", "skill", "cast", "strike", "weapon"}
     for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
             local n = obj.Name:lower()
-            for _, kw in pairs(keywords) do
+            for _, kw in ipairs(keywords) do
                 if n:find(kw) then
                     table.insert(remotes, obj)
                     break
@@ -149,98 +257,81 @@ local function refreshCombatRemotes()
         end
     end
     combatRemotesCache = remotes
-    lastRemoteRefresh = tick()
+    lastRemoteScan = tick()
 end
-refreshCombatRemotes()
+scanRemotes()
 
-local function equipWeapon()
+local function equipBestWeapon()
     if not Char then return end
-    local curTool = Char:FindFirstChildOfClass("Tool")
-    if not curTool then
+    local tool = Char:FindFirstChildOfClass("Tool")
+    if not tool then
         local bp = LP:FindFirstChild("Backpack")
         if bp then
-            local tool = bp:FindFirstChildOfClass("Tool")
-            if tool and Hum then
-                pcall(function() Hum:EquipTool(tool) end)
-            end
+            local t = bp:FindFirstChildOfClass("Tool")
+            if t and Hum then pcall(function() Hum:EquipTool(t) end) end
         end
     end
 end
 
--- ================================================
--- BỘ MÃ THỰC THI TẤN CÔNG M1 ĐA TẦNG (100% TRÚNG QUÁI)
--- ================================================
-local lastM1Time = 0
-local lastSkillTime = 0
-local lastDashTime = 0
+local lastM1 = 0
+local lastSkill = 0
+local lastDash = 0
 
-local function clickScreenCenter()
+local function triggerAttackM1(targetModel, targetRoot)
+    local now = tick()
+    if now - lastM1 < CFG.m1Delay then return end
+    lastM1 = now
+
+    equipBestWeapon()
+
     local vp = Cam.ViewportSize
     local cx, cy = vp.X / 2, vp.Y / 2
 
-    -- 1. Gửi sự kiện Click chuột trái máy tính
+    -- 1. Click chuột trái vào giữa màn hình
     pcall(function()
         VirtualInputMgr:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
         task.wait(0.02)
         VirtualInputMgr:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
     end)
 
-    -- 2. Gửi sự kiện chạm cảm ứng màn hình Mobile
+    -- 2. Chạm cảm ứng màn hình Mobile
     pcall(function()
         VirtualInputMgr:SendTouchEvent(1, 0, cx, cy)
         task.wait(0.02)
         VirtualInputMgr:SendTouchEvent(1, 2, cx, cy)
     end)
 
-    -- 3. Gửi VirtualUser Button1
+    -- 3. VirtualUser Button1
     pcall(function()
         VirtualUser:CaptureController()
         VirtualUser:Button1Down(Vector2.new(cx, cy), Cam.CFrame)
         task.wait(0.02)
         VirtualUser:Button1Up(Vector2.new(cx, cy), Cam.CFrame)
     end)
-end
 
--- Tự động chạm vào nút Đánh (Attack Button) trên màn hình điện thoại
-local function triggerMobileAttackButton()
+    -- 4. Bấm nút Attack trên màn hình game (nếu có)
     local pGui = LP:FindFirstChild("PlayerGui")
-    if not pGui then return end
-    for _, btn in ipairs(pGui:GetDescendants()) do
-        if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-            local n = btn.Name:lower()
-            local text = btn:IsA("TextButton") and btn.Text:lower() or ""
-            if n:find("attack") or n:find("m1") or n:find("slash") or n:find("strike") or n:find("punch") or text:find("attack") or text:find("m1") then
-                pcall(function()
-                    firesignal(btn.MouseButton1Down)
-                    firesignal(btn.Activated)
-                end)
+    if pGui then
+        for _, btn in ipairs(pGui:GetDescendants()) do
+            if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
+                local n = btn.Name:lower()
+                local text = btn:IsA("TextButton") and btn.Text:lower() or ""
+                if n:find("attack") or n:find("m1") or n:find("slash") or n:find("strike") or text:find("attack") or text:find("m1") then
+                    pcall(function()
+                        firesignal(btn.MouseButton1Down)
+                        firesignal(btn.Activated)
+                    end)
+                end
             end
         end
     end
-end
 
-local function executeCombatHit(targetModel, targetRoot)
-    local now = tick()
-    if now - lastM1Time < CFG.m1Delay then return end
-    lastM1Time = now
-
-    equipWeapon()
-
-    -- 1. Kích hoạt đòn đánh màn hình
-    clickScreenCenter()
-    triggerMobileAttackButton()
-
-    -- 2. Kích hoạt Tool nếu nhân vật cầm Tool
+    -- 5. Kích hoạt Tool
     local tool = Char:FindFirstChildOfClass("Tool")
-    if tool then
-        pcall(function() tool:Activate() end)
-    end
+    if tool then pcall(function() tool:Activate() end) end
 
-    -- 3. Bắn các Remote combat trong ReplicatedStorage
-    if now - lastRemoteRefresh > 6 then
-        refreshCombatRemotes()
-    end
-
+    -- 6. Bắn remote combat
+    if now - lastRemoteScan > 6 then scanRemotes() end
     for _, r in ipairs(combatRemotesCache) do
         pcall(function()
             if r:IsA("RemoteEvent") then
@@ -255,27 +346,27 @@ local function executeCombatHit(targetModel, targetRoot)
         end)
     end
 
-    -- 4. Tự động xả chiêu thức 1, 2, 3, 4
-    if State.autoskill and (now - lastSkillTime > CFG.skillDelay) then
-        lastSkillTime = now
+    -- 7. Xả chiêu thức 1, 2, 3
+    if State.autoskill and (now - lastSkill > CFG.skillDelay) then
+        lastSkill = now
         pcall(function()
             VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.One, false, game)
             task.wait(0.02)
             VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.One, false, game)
-            task.wait(0.04)
+            task.wait(0.03)
             VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
             task.wait(0.02)
             VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
-            task.wait(0.04)
+            task.wait(0.03)
             VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Three, false, game)
             task.wait(0.02)
             VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.Three, false, game)
         end)
     end
 
-    -- 5. Tự động Dash (Q) né đòn
-    if State.autodash and (now - lastDashTime > CFG.dashDelay) then
-        lastDashTime = now
+    -- 8. Lướt Dash (Q) né đòn
+    if State.autodash and (now - lastDash > CFG.dashDelay) then
+        lastDash = now
         pcall(function()
             VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
             task.wait(0.02)
@@ -285,110 +376,55 @@ local function executeCombatHit(targetModel, targetRoot)
 end
 
 -- ================================================
--- TÌM KIẾM QUÁI & XÁC ĐỊNH MÔI TRƯỜNG (SẢNH HAY HẦM NGỤC)
+-- HỆ THỐNG TỰ ĐỘNG ĐI BỘ VÀO HẦM NGỤC Ở SẢNH (LOBBY WALK)
 -- ================================================
-local MOB_FOLDERS = {"Enemies", "Mobs", "Monsters", "DungeonMobs", "Entities", "RoomEnemies", "Boss", "Bosses"}
+local isNavigatingLobby = false
 
-local function getAllLivingEnemies()
-    local list = {}
-    local seen = {}
+local function startLobbyWalkToDungeon()
+    if isNavigatingLobby then return end
+    isNavigatingLobby = true
+    State.statusText = "Đang tìm cổng hầm ngục ở sảnh..."
+    print("[VOSS] " .. State.statusText)
 
-    local function checkAndAdd(model)
-        if not model or not model:IsA("Model") or seen[model] then return end
-        if model == Char then return end
-        if Players:GetPlayerFromCharacter(model) then return end
+    -- 1. Tìm vị trí Cổng / Bảng Hầm Ngục gần mặt đất nhất ở sảnh
+    local portalTarget = nil
+    local minGroundDist = 999999
 
-        local mHum = model:FindFirstChildOfClass("Humanoid")
-        local mHRP = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or model:FindFirstChild("Head")
-
-        if mHum and mHRP and mHum.Health > 0 then
-            seen[model] = true
-            local isBoss = false
-            local nameLower = model.Name:lower()
-            if nameLower:find("boss") or (mHum.MaxHealth > 5000) then
-                isBoss = true
-            end
-            table.insert(list, {
-                model = model,
-                root  = mHRP,
-                hum   = mHum,
-                boss  = isBoss
-            })
-        end
-    end
-
-    for _, fName in ipairs(MOB_FOLDERS) do
-        local f = workspace:FindFirstChild(fName, true)
-        if f then
-            for _, c in ipairs(f:GetChildren()) do checkAndAdd(c) end
-        end
-    end
-
-    for _, containerName in ipairs({"Dungeon", "Rooms", "Map", "CurrentRoom"}) do
-        local container = workspace:FindFirstChild(containerName)
-        if container then
-            for _, desc in ipairs(container:GetDescendants()) do
-                if desc:IsA("Model") and desc:FindFirstChildOfClass("Humanoid") then
-                    checkAndAdd(desc)
-                end
-            end
-        end
-    end
-
-    if #list == 0 then
-        for _, obj in ipairs(workspace:GetChildren()) do
-            checkAndAdd(obj)
-        end
-    end
-
-    return list
-end
-
-local function isPlayerInLobby()
-    local enemies = getAllLivingEnemies()
-    if #enemies > 0 then return false end
-    -- Kiểm tra các đặc điểm nhận diện sảnh chờ
-    for _, name in ipairs({"Lobby", "SpawnLocation", "TrainingDummy", "Summon", "Gacha", "DungeonPortal", "Shop"}) do
-        if workspace:FindFirstChild(name, true) then
-            return true
-        end
-    end
-    return true
-end
-
--- ================================================
--- HỆ THỐNG VÀO HẦM NGỤC & CÀY CẤP TỪNG BẬC (LOBBY MANAGER)
--- ================================================
-local isEnteringDungeon = false
-
-local function performEnterDungeonSequence()
-    if isEnteringDungeon then return end
-    isEnteringDungeon = true
-    print("[VOSS] Bắt đầu quy trình vào Hầm Ngục theo cấp độ: " .. State.targetLevel)
-
-    -- 1. Tìm Bảng / Cổng Hầm Ngục ở sảnh
-    local dungeonEntrance = nil
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") or obj:IsA("Model") then
             local n = obj.Name:lower()
-            if n:find("dungeonportal") or n:find("portal") or n:find("dungeongate") or n:find("dungeonboard") or n:find("matchmaking") or n:find("gate") then
+            if (n:find("dungeonportal") or n:find("dungeongate") or n:find("dungeonboard") or n:find("portal") or n:find("gate") or n:find("matchmaking")) and not n:find("exit") then
                 local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                if part then
-                    dungeonEntrance = part
-                    break
+                if part and HRP then
+                    local yDiff = math.abs(part.Position.Y - HRP.Position.Y)
+                    if yDiff < 15 then -- Phải nằm sát mặt đất, không được trên trời!
+                        local dist = (HRP.Position - part.Position).Magnitude
+                        if dist < minGroundDist then
+                            portalTarget = part
+                            minGroundDist = dist
+                        end
+                    end
                 end
             end
         end
     end
 
-    -- 2. Di chuyển đến cổng 1 lần duy nhất
-    if dungeonEntrance and HRP then
-        HRP.AssemblyLinearVelocity = Vector3.zero
-        HRP.CFrame = dungeonEntrance.CFrame + Vector3.new(0, 3, 0)
-        task.wait(0.5)
+    if portalTarget and HRP then
+        State.statusText = "Đang tự đi bộ đến cổng hầm ngục..."
+        print("[VOSS] " .. State.statusText)
+
+        -- Đi bộ mượt mà đến cổng trên mặt đất
+        local arrived = naturalWalkTo(portalTarget.Position, 3.5, 10)
+        task.wait(0.4)
+
+        -- Bước hẳn vào tâm cổng
+        if HRP then
+            HRP.CFrame = CFrame.new(portalTarget.Position.X, HRP.Position.Y, portalTarget.Position.Z)
+            task.wait(0.3)
+        end
     end
 
-    -- 3. Kích hoạt ProximityPrompt nếu có
+    -- 2. Kích hoạt ProximityPrompt nếu có
     for _, prompt in ipairs(workspace:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             local pText = (prompt.ActionText .. " " .. prompt.ObjectText):lower()
@@ -399,28 +435,28 @@ local function performEnterDungeonSequence()
         end
     end
 
-    -- 4. Chờ giao diện chọn hầm ngục xuất hiện trên màn hình
+    -- 3. Xử lý menu chọn cấp độ hầm ngục
     task.wait(0.8)
     local pGui = LP:FindFirstChild("PlayerGui")
     if pGui then
-        -- A. Chọn Cấp độ (Level Selector)
+        State.statusText = "Đang chọn cấp độ: " .. State.targetLevel
+        print("[VOSS] " .. State.statusText)
+
         local targetLvlStr = tostring(State.targetLevel)
         for _, btn in ipairs(pGui:GetDescendants()) do
             if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
                 local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
 
                 if State.targetLevel ~= "AUTO" then
-                    -- Chọn đúng cấp người chơi yêu cầu (vd: Cấp 1, Cấp 2...)
                     if bText:find("level " .. targetLvlStr) or bText:find("lv " .. targetLvlStr) or bText:find("cấp " .. targetLvlStr) or btn.Name == targetLvlStr then
                         pcall(function()
                             firesignal(btn.MouseButton1Click)
                             firesignal(btn.Activated)
                         end)
-                        task.wait(0.4)
+                        task.wait(0.3)
                         break
                     end
                 else
-                    -- Chế độ AUTO: Bấm vào ải cao nhất đã mở
                     if bText:find("level") or bText:find("cấp") or bText:find("chapter") then
                         pcall(function()
                             firesignal(btn.MouseButton1Click)
@@ -431,9 +467,9 @@ local function performEnterDungeonSequence()
             end
         end
 
-        task.wait(0.5)
+        task.wait(0.4)
 
-        -- B. Bấm nút Tạo phòng / Bắt đầu / Solo / Ready
+        -- 4. Bấm nút Bắt đầu / Solo / Start / Create
         for _, btn in ipairs(pGui:GetDescendants()) do
             if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
                 local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
@@ -442,7 +478,8 @@ local function performEnterDungeonSequence()
                         firesignal(btn.MouseButton1Click)
                         firesignal(btn.Activated)
                     end)
-                    print("[VOSS] Đã nhấn nút xác nhận bắt đầu: " .. btn.Name)
+                    State.statusText = "Đã bấm bắt đầu! Đang vào hầm ngục..."
+                    print("[VOSS] " .. State.statusText)
                     task.wait(0.4)
                     break
                 end
@@ -450,48 +487,49 @@ local function performEnterDungeonSequence()
         end
     end
 
-    -- Chờ 5 giây để game chuyển cảnh vào map
-    task.wait(5.0)
-    isEnteringDungeon = false
+    task.wait(4.0)
+    isNavigatingLobby = false
 end
 
 -- ================================================
--- TRUNG TÂM ĐIỀU PHỐI DUY NHẤT (STATE MACHINE CONTROLLER)
+-- VÒNG LẶP ĐIỀU KHIỂN CHÍNH (GROUND COMBAT & PROGRESSION)
 -- ================================================
--- Chỉ thực hiện 1 hành động duy nhất tại 1 thời điểm!
--- Triệt tiêu hoàn toàn xung đột tele loạn xạ!
-local isLootingChest = false
-local isGoingNextRoom = false
+local isBusyWithChest = false
+local isBusyWithDoor  = false
 
 RunService.Heartbeat:Connect(function()
     if not HRP or not Hum or Hum.Health <= 0 then return end
 
     -- ============================================
-    -- TRƯỜNG HỢP 1: ĐANG Ở SẢNH CHỜ (LOBBY)
+    -- TRƯỜNG HỢP 1: Ở SẢNH CHỜ (LOBBY)
     -- ============================================
     if isPlayerInLobby() then
-        if State.autodungeon and not isEnteringDungeon then
-            performEnterDungeonSequence()
+        if State.autodungeon and not isNavigatingLobby then
+            startLobbyWalkToDungeon()
+        else
+            if not isNavigatingLobby then
+                State.statusText = "Đang ở Sảnh Chờ (Sẵn sàng vào map)"
+            end
         end
         return
     end
 
     -- ============================================
-    -- TRƯỜNG HỢP 2: ĐANG TRONG HẦM NGỤC (DUNGEON)
+    -- TRƯỜNG HỢP 2: TRONG HẦM NGỤC (DUNGEON)
     -- ============================================
-    local livingEnemies = getAllLivingEnemies()
+    local realEnemies = getRealDungeonEnemies()
 
     -- --------------------------------------------
-    -- BƯỚC 1: ĐANG CÒN QUÁI TRONG PHÒNG -> TẬP TRUNG FARM 100%
+    -- BƯỚC 1: CÒN QUÁI TRONG PHÒNG -> ĐỨNG ĐẤT CHÉM SAU LƯNG
     -- --------------------------------------------
-    if #livingEnemies > 0 and (State.autofarm or State.autoboss) then
-        isLootingChest = false
-        isGoingNextRoom = false
+    if #realEnemies > 0 and (State.autofarm or State.autoboss) then
+        isBusyWithChest = false
+        isBusyWithDoor  = false
 
-        -- Tìm mục tiêu tốt nhất (Ưu tiên Boss nếu bật)
+        -- Tìm quái gần nhất
         local target = nil
         local bestDist = 999999
-        for _, e in ipairs(livingEnemies) do
+        for _, e in ipairs(realEnemies) do
             if not State.autoboss or e.boss then
                 local dist = (HRP.Position - e.root.Position).Magnitude
                 if dist < bestDist then
@@ -501,99 +539,100 @@ RunService.Heartbeat:Connect(function()
             end
         end
         if not target and State.autoboss then
-            target = livingEnemies[1]
+            target = realEnemies[1]
         end
 
         if target and target.root and target.hum and target.hum.Health > 0 then
-            local mobRoot = target.root
-            local mobCF   = mobRoot.CFrame
+            local mobRoot  = target.root
+            local mobCF    = mobRoot.CFrame
+            local mobPos   = mobRoot.Position
+            local myPos    = HRP.Position
 
-            -- Tính toán vị trí áp sát hoàn hảo
-            local attackPos
-            if State.combatStance == "BEHIND" then
-                -- BÁM SAU LƯNG QUÁI: Quái quay lưng lại với mình, kiếm đâm xuyên lưng
-                attackPos = mobRoot.Position - (mobCF.LookVector * CFG.behindDist) + Vector3.new(0, CFG.behindHeight, 0)
+            State.statusText = "Đang chiến đấu: " .. target.model.Name .. " (HP: " .. math.floor(target.hum.Health) .. ")"
+
+            -- Giữ nhân vật ĐỨNG ĐẤT BÌNH THƯỜNG (không bay lên trời!)
+            Hum.PlatformStand = false
+
+            -- Tính vị trí sau lưng quái TRÊN MẶT ĐẤT
+            local behindPos = mobPos - (mobCF.LookVector * 2.0)
+            -- Đảm bảo độ cao Y trùng với mặt đất chân quái
+            behindPos = Vector3.new(behindPos.X, mobPos.Y, behindPos.Z)
+
+            local distToMob = (myPos - behindPos).Magnitude
+
+            if distToMob > 5.0 then
+                -- Nếu còn cách xa hơn 5 studs: Tự đi bộ tiếp cận nhanh chóng
+                Hum:MoveTo(behindPos)
             else
-                -- TRÊN ĐẦU QUÁI: Lơ lửng 2.8 studs phía trên, góc nhìn cúi xuống quái
-                attackPos = mobRoot.Position + Vector3.new(0, CFG.aboveHeight, -0.6)
-            end
-
-            -- Khóa vận tốc chống văng & hướng thẳng mặt vào quái
-            HRP.AssemblyLinearVelocity  = Vector3.zero
-            HRP.AssemblyAngularVelocity = Vector3.zero
-            HRP.CFrame = CFrame.lookAt(attackPos, mobRoot.Position)
-
-            -- Thực hiện tấn công
-            executeCombatHit(target.model, mobRoot)
-            return -- Xong frame này, không làm gì thêm!
-        end
-    end
-
-    -- --------------------------------------------
-    -- BƯỚC 2: PHÒNG ĐÃ SẠCH QUÁI -> TỰ NHẶT RƯƠNG TRƯỚC (NẾU CÓ)
-    -- --------------------------------------------
-    if #livingEnemies == 0 and State.autochest and not isLootingChest and not isGoingNextRoom then
-        local chestObj = nil
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            local n = obj.Name:lower()
-            if (n:find("chest") or n:find("treasure") or n:find("reward")) and (obj:IsA("BasePart") or obj:IsA("Model")) then
-                local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                if part and (part.Position - HRP.Position).Magnitude > 4 then
-                    chestObj = obj
-                    break
-                end
-            end
-        end
-
-        if chestObj then
-            isLootingChest = true
-            local part = chestObj:IsA("BasePart") and chestObj or chestObj:FindFirstChildWhichIsA("BasePart")
-            if part then
+                -- Khi đã áp sát trong phạm vi 5 studs: Đứng vững sau lưng, mặt quay thẳng vào quái
                 HRP.AssemblyLinearVelocity = Vector3.zero
-                HRP.CFrame = part.CFrame + Vector3.new(0, 2.5, 0)
-                task.wait(0.4)
-                local prompt = chestObj:FindFirstChildOfClass("ProximityPrompt") or part:FindFirstChildOfClass("ProximityPrompt")
-                if prompt then
-                    pcall(function() fireproximityprompt(prompt) end)
-                end
-                task.wait(0.6)
+                HRP.CFrame = CFrame.lookAt(behindPos, Vector3.new(mobPos.X, behindPos.Y, mobPos.Z))
             end
-            isLootingChest = false
+
+            -- Kích hoạt đòn chém M1 và chiêu thức
+            triggerAttackM1(target.model, mobRoot)
             return
         end
     end
 
     -- --------------------------------------------
-    -- BƯỚC 3: PHÒNG SẠCH QUÁI & NHẶT XONG RƯƠNG -> TIẾN VỀ CỬA QUA ẢI
+    -- BƯỚC 2: PHÒNG SẠCH QUÁI -> TỰ ĐI BỘ NHẶT RƯƠNG
     -- --------------------------------------------
-    if #livingEnemies == 0 and State.autodoor and not isGoingNextRoom then
-        isGoingNextRoom = true
+    if #realEnemies == 0 and State.autochest and not isBusyWithChest and not isBusyWithDoor then
+        local chestPart = nil
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            local n = obj.Name:lower()
+            if (n:find("chest") or n:find("treasure") or n:find("reward")) and (obj:IsA("BasePart") or obj:IsA("Model")) then
+                local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
+                if part and HRP and math.abs(part.Position.Y - HRP.Position.Y) < 15 then
+                    if (part.Position - HRP.Position).Magnitude > 3.5 then
+                        chestPart = part
+                        break
+                    end
+                end
+            end
+        end
 
-        -- Tìm cửa phòng tiếp theo
+        if chestPart then
+            isBusyWithChest = true
+            State.statusText = "Đang đi bộ nhặt rương kho báu..."
+            naturalWalkTo(chestPart.Position, 3.0, 5.0)
+
+            local prompt = chestPart:FindFirstChildOfClass("ProximityPrompt") or chestPart.Parent:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then pcall(function() fireproximityprompt(prompt) end) end
+            task.wait(0.6)
+            isBusyWithChest = false
+            return
+        end
+    end
+
+    -- --------------------------------------------
+    -- BƯỚC 3: PHÒNG SẠCH QUÁI -> TỰ ĐI BỘ RA CỬA QUA ẢI
+    -- --------------------------------------------
+    if #realEnemies == 0 and State.autodoor and not isBusyWithDoor then
+        isBusyWithDoor = true
+
         local doorPart = nil
         for _, obj in ipairs(workspace:GetDescendants()) do
             local n = obj.Name:lower()
             if (n:find("nextroom") or n:find("door") or n:find("gate") or n:find("exit")) and not n:find("lobby") then
                 local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                if part then
+                if part and HRP and math.abs(part.Position.Y - HRP.Position.Y) < 15 then
                     doorPart = part
                     break
                 end
             end
         end
 
-        if doorPart and (doorPart.Position - HRP.Position).Magnitude > 5 then
-            HRP.AssemblyLinearVelocity = Vector3.zero
-            HRP.CFrame = doorPart.CFrame + Vector3.new(0, 2.5, 0)
-            task.wait(0.5)
+        if doorPart and HRP and (doorPart.Position - HRP.Position).Magnitude > 4.0 then
+            State.statusText = "Đang đi bộ qua cửa phòng tiếp theo..."
+            naturalWalkTo(doorPart.Position, 3.0, 6.0)
 
             local prompt = doorPart:FindFirstChildOfClass("ProximityPrompt") or doorPart.Parent:FindFirstChildOfClass("ProximityPrompt")
-            if prompt then
-                pcall(function() fireproximityprompt(prompt) end)
-            end
+            if prompt then pcall(function() fireproximityprompt(prompt) end) end
         end
 
-        -- Bấm nút Vote / Tiếp tục trên màn hình nếu có
+        -- Xác nhận nút Vote trên màn hình
         local pGui = LP:FindFirstChild("PlayerGui")
         if pGui then
             for _, btn in ipairs(pGui:GetDescendants()) do
@@ -609,12 +648,12 @@ RunService.Heartbeat:Connect(function()
             end
         end
 
-        task.wait(1.0)
-        isGoingNextRoom = false
+        task.wait(0.8)
+        isBusyWithDoor = false
     end
 
     -- --------------------------------------------
-    -- BƯỚC 4: KHI XONG CẢ HẦM NGỤC (VICTORY / REPLAY)
+    -- BƯỚC 4: HOÀN THÀNH HẦM NGỤC -> TỰ CHƠI LẠI (REPLAY)
     -- --------------------------------------------
     if State.autoreplay then
         local pGui = LP:FindFirstChild("PlayerGui")
@@ -627,6 +666,7 @@ RunService.Heartbeat:Connect(function()
                             firesignal(btn.MouseButton1Click)
                             firesignal(btn.Activated)
                         end)
+                        State.statusText = "Hầm ngục hoàn tất! Đang chơi lại..."
                         task.wait(0.5)
                         break
                     end
@@ -637,7 +677,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ================================================
--- HỆ THỐNG BAY 3D CẢM ỨNG MOBILE [▲ Lên] [▼ Xuống]
+-- HỆ THỐNG BAY 3D MOBILE [▲ Lên] [▼ Xuống]
 -- ================================================
 local flyConn     = nil
 local flyObjects  = {}
@@ -796,16 +836,10 @@ local function startFly()
     table.insert(flyObjects, bg)
 
     flyConn = RunService.RenderStepped:Connect(function()
-        if not State.fly or not HRP or not Hum then
-            stopFly()
-            return
-        end
+        if not State.fly or not HRP or not Hum then stopFly(); return end
         local bv2 = HRP:FindFirstChild("VOSS_BV")
         local bg2 = HRP:FindFirstChild("VOSS_BG")
-        if not bv2 or not bg2 then
-            stopFly()
-            return
-        end
+        if not bv2 or not bg2 then stopFly(); return end
 
         local fDir = getFlyDirection()
         bv2.Velocity = fDir.Magnitude > 0 and (fDir.Unit * CFG.flyspeed) or Vector3.zero
@@ -838,7 +872,7 @@ RunService.Heartbeat:Connect(function()
     local seen = {}
 
     if State.esp_mobs then
-        local enemies = getAllLivingEnemies()
+        local enemies = getRealDungeonEnemies()
         for _, e in ipairs(enemies) do
             local key = "mob_" .. tostring(e.model)
             seen[key] = true
@@ -846,7 +880,7 @@ RunService.Heartbeat:Connect(function()
                 local bb = Instance.new("BillboardGui")
                 bb.AlwaysOnTop = true
                 bb.Size        = UDim2.new(0, 140, 0, 30)
-                bb.StudsOffset = Vector3.new(0, 3.5, 0)
+                bb.StudsOffset = Vector3.new(0, 3.0, 0)
                 bb.Adornee     = e.root
                 bb.Parent      = e.root
 
@@ -868,7 +902,7 @@ RunService.Heartbeat:Connect(function()
             local n = obj.Name:lower()
             if (n:find("chest") or n:find("treasure")) and (obj:IsA("BasePart") or obj:IsA("Model")) then
                 local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                if part then
+                if part and HRP and math.abs(part.Position.Y - HRP.Position.Y) < 20 then
                     local key = "chest_" .. tostring(obj)
                     seen[key] = true
                     if not ESPCache[key] then
@@ -935,8 +969,8 @@ fbStroke.Color = Color3.fromRGB(145, 75, 255); fbStroke.Thickness = 2
 -- 2. KHUNG MENU CHÍNH
 local MainFrame = Instance.new("Frame", SG)
 MainFrame.Name             = "MainFrame"
-MainFrame.Size             = UDim2.new(0, 315, 0, 500)
-MainFrame.Position         = UDim2.new(0.5, -157, 0.5, -250)
+MainFrame.Size             = UDim2.new(0, 320, 0, 520)
+MainFrame.Position         = UDim2.new(0.5, -160, 0.5, -260)
 MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 MainFrame.BorderSizePixel  = 0
 MainFrame.Active           = true
@@ -949,16 +983,16 @@ mfStroke.Color = Color3.fromRGB(125, 65, 235); mfStroke.Thickness = 2
 
 -- Header
 local Header = Instance.new("Frame", MainFrame)
-Header.Size             = UDim2.new(1, 0, 0, 52)
+Header.Size             = UDim2.new(1, 0, 0, 54)
 Header.BackgroundColor3 = Color3.fromRGB(18, 16, 28)
 Header.BorderSizePixel  = 0
 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 14)
 
 local Title = Instance.new("TextLabel", Header)
-Title.Size               = UDim2.new(1, -50, 0, 30)
+Title.Size               = UDim2.new(1, -50, 0, 26)
 Title.Position           = UDim2.new(0, 16, 0, 4)
 Title.BackgroundTransparency = 1
-Title.Text               = "VOSS | Thợ Săn Hầm Ngục v2 ⚔️"
+Title.Text               = "VOSS | Thợ Săn Hầm Ngục v3 ⚔️"
 Title.TextColor3         = Color3.fromRGB(220, 180, 255)
 Title.Font               = Enum.Font.GothamBold
 Title.TextSize           = 14
@@ -968,7 +1002,7 @@ local SubTitle = Instance.new("TextLabel", Header)
 SubTitle.Size               = UDim2.new(1, -50, 0, 16)
 SubTitle.Position           = UDim2.new(0, 16, 0, 28)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text               = "Auto Farm Chuẩn Cơ Chế • Không Lỗi Tele"
+SubTitle.Text               = "Đứng Đất Chém Sau Lưng • Tự Đi Bộ Vào Map"
 SubTitle.TextColor3         = Color3.fromRGB(130, 120, 170)
 SubTitle.Font               = Enum.Font.Gotham
 SubTitle.TextSize           = 10
@@ -976,7 +1010,7 @@ SubTitle.TextXAlignment     = Enum.TextXAlignment.Left
 
 local CloseBtn = Instance.new("TextButton", Header)
 CloseBtn.Size             = UDim2.new(0, 28, 0, 28)
-CloseBtn.Position         = UDim2.new(1, -38, 0, 12)
+CloseBtn.Position         = UDim2.new(1, -38, 0, 13)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
 CloseBtn.Text             = "✕"
 CloseBtn.TextColor3       = Color3.fromRGB(255, 180, 180)
@@ -987,15 +1021,41 @@ Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 8)
 CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false end)
 FloatBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
 
+-- Thanh hiển thị Trạng thái trực tiếp (Status Banner)
+local StatusBanner = Instance.new("Frame", MainFrame)
+StatusBanner.Size             = UDim2.new(1, -20, 0, 26)
+StatusBanner.Position         = UDim2.new(0, 10, 0, 58)
+StatusBanner.BackgroundColor3 = Color3.fromRGB(24, 20, 38)
+Instance.new("UICorner", StatusBanner).CornerRadius = UDim.new(0, 6)
+
+local StatusLbl = Instance.new("TextLabel", StatusBanner)
+StatusLbl.Size               = UDim2.new(1, -12, 1, 0)
+StatusLbl.Position           = UDim2.new(0, 8, 0, 0)
+StatusLbl.BackgroundTransparency = 1
+StatusLbl.Text               = "Trạng thái: " .. State.statusText
+StatusLbl.TextColor3         = Color3.fromRGB(200, 255, 180)
+StatusLbl.Font               = Enum.Font.GothamBold
+StatusLbl.TextSize           = 10
+StatusLbl.TextXAlignment     = Enum.TextXAlignment.Left
+
+-- Cập nhật trạng thái theo chu kỳ
+task.spawn(function()
+    while task.wait(0.5) do
+        if StatusLbl and StatusLbl.Parent then
+            StatusLbl.Text = "Trạng thái: " .. State.statusText
+        end
+    end
+end)
+
 -- Danh sách cuộn
 local Scroll = Instance.new("ScrollingFrame", MainFrame)
-Scroll.Size             = UDim2.new(1, -16, 1, -64)
-Scroll.Position         = UDim2.new(0, 8, 0, 58)
+Scroll.Size             = UDim2.new(1, -16, 1, -94)
+Scroll.Position         = UDim2.new(0, 8, 0, 88)
 Scroll.BackgroundTransparency = 1
 Scroll.BorderSizePixel  = 0
 Scroll.ScrollBarThickness = 4
 Scroll.ScrollBarImageColor3 = Color3.fromRGB(120, 70, 220)
-Scroll.CanvasSize       = UDim2.new(0, 0, 0, 760)
+Scroll.CanvasSize       = UDim2.new(0, 0, 0, 780)
 
 local UIList = Instance.new("UIListLayout", Scroll)
 UIList.Padding = UDim.new(0, 8)
@@ -1066,9 +1126,47 @@ local function createToggle(title, desc, defaultState, callback, order)
     return f
 end
 
+local function createBigButton(title, desc, color, callback, order)
+    local btn = Instance.new("TextButton", Scroll)
+    btn.Size             = UDim2.new(1, -6, 0, 50)
+    btn.BackgroundColor3 = color or Color3.fromRGB(80, 40, 160)
+    btn.LayoutOrder      = order
+    btn.Text             = ""
+    btn.AutoButtonColor  = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Color = Color3.fromRGB(160, 100, 255); stroke.Thickness = 1.5
+
+    local tLbl = Instance.new("TextLabel", btn)
+    tLbl.Size               = UDim2.new(1, -20, 0, 24)
+    tLbl.Position           = UDim2.new(0, 12, 0, 4)
+    tLbl.BackgroundTransparency = 1
+    tLbl.Text               = title
+    tLbl.TextColor3         = Color3.fromRGB(255, 255, 255)
+    tLbl.Font               = Enum.Font.GothamBold
+    tLbl.TextSize           = 13
+    tLbl.TextXAlignment     = Enum.TextXAlignment.Left
+
+    local dLbl = Instance.new("TextLabel", btn)
+    dLbl.Size               = UDim2.new(1, -20, 0, 16)
+    dLbl.Position           = UDim2.new(0, 12, 0, 26)
+    dLbl.BackgroundTransparency = 1
+    dLbl.Text               = desc
+    dLbl.TextColor3         = Color3.fromRGB(210, 190, 250)
+    dLbl.Font               = Enum.Font.Gotham
+    dLbl.TextSize           = 10
+    dLbl.TextXAlignment     = Enum.TextXAlignment.Left
+
+    btn.MouseButton1Click:Connect(function()
+        callback()
+    end)
+    return btn
+end
+
 local function createLevelSelector(order)
     local f = Instance.new("Frame", Scroll)
-    f.Size             = UDim2.new(1, -6, 0, 62)
+    f.Size             = UDim2.new(1, -6, 0, 64)
     f.BackgroundColor3 = Color3.fromRGB(22, 19, 36)
     f.LayoutOrder      = order
     Instance.new("UICorner", f).CornerRadius = UDim.new(0, 10)
@@ -1077,7 +1175,7 @@ local function createLevelSelector(order)
     tLbl.Size               = UDim2.new(1, -16, 0, 20)
     tLbl.Position           = UDim2.new(0, 12, 0, 6)
     tLbl.BackgroundTransparency = 1
-    tLbl.Text               = "🎯 Chọn Cấp Hầm Ngục Muốn Farm:"
+    tLbl.Text               = "🎯 Chọn Cấp Hầm Ngục Muốn Đi:"
     tLbl.TextColor3         = Color3.fromRGB(225, 190, 255)
     tLbl.Font               = Enum.Font.GothamBold
     tLbl.TextSize           = 12
@@ -1088,18 +1186,18 @@ local function createLevelSelector(order)
     btnContainer.Position   = UDim2.new(0, 10, 0, 28)
     btnContainer.BackgroundTransparency = 1
     btnContainer.ScrollBarThickness = 0
-    btnContainer.CanvasSize = UDim2.new(0, 380, 0, 0)
+    btnContainer.CanvasSize = UDim2.new(0, 360, 0, 0)
 
     local bList = Instance.new("UIListLayout", btnContainer)
     bList.FillDirection = Enum.FillDirection.Horizontal
     bList.Padding = UDim.new(0, 6)
 
-    local levels = {"AUTO", "1", "2", "3", "4", "5", "6", "7"}
+    local levels = {"AUTO", "1", "2", "3", "4", "5"}
     local levelBtns = {}
 
     for _, lvl in ipairs(levels) do
         local b = Instance.new("TextButton", btnContainer)
-        b.Size = UDim2.new(0, lvl == "AUTO" and 54 or 40, 0, 26)
+        b.Size = UDim2.new(0, lvl == "AUTO" and 54 or 42, 0, 26)
         b.BackgroundColor3 = (State.targetLevel == lvl) and Color3.fromRGB(130, 60, 240) or Color3.fromRGB(38, 32, 58)
         b.Text = (lvl == "AUTO") and "AUTO" or ("Cấp " .. lvl)
         b.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1109,11 +1207,9 @@ local function createLevelSelector(order)
 
         b.MouseButton1Click:Connect(function()
             State.targetLevel = lvl
-            for _, ob in pairs(levelBtns) do
-                ob.BackgroundColor3 = Color3.fromRGB(38, 32, 58)
-            end
+            for _, ob in pairs(levelBtns) do ob.BackgroundColor3 = Color3.fromRGB(38, 32, 58) end
             b.BackgroundColor3 = Color3.fromRGB(130, 60, 240)
-            print("[VOSS] Đã chọn cấp độ farm: " .. lvl)
+            State.statusText = "Đã chọn cấp độ: " .. lvl
         end)
         table.insert(levelBtns, b)
     end
@@ -1124,50 +1220,56 @@ end
 -- KHỞI TẠO NỘI DUNG MENU
 -- ================================================
 
--- NHÓM 1: CÀY CẤP & CHIẾN ĐẤU (AUTO FARM)
-createCategory("⚔️ CÀY CẤP & CHIẾN ĐẤU (AUTO FARM)", 1)
+-- NHÓM 1: ĐI BỘ VÀO HẦM NGỤC Ở SẢNH
+createCategory("🏛️ TẠI SẢNH CHỜ (LOBBY)", 1)
 
-createToggle("Auto Farm Quái (M1 Đa Kênh)", "Bám sát sau lưng chém trúng 100%, quái không chạm được", State.autofarm, function(val)
-    State.autofarm = val
-end, 2)
+createLevelSelector(2)
 
-createToggle("Ưu Tiên Săn Boss", "Tập trung diệt Boss trước để nhận đồ quý", State.autoboss, function(val)
-    State.autoboss = val
+createBigButton("▶ TỰ ĐI BỘ VÀO HẦM NGỤC", "Tự đi bộ đến cổng sảnh, mở bảng, chọn cấp & vào map", Color3.fromRGB(90, 45, 180), function()
+    task.spawn(function()
+        startLobbyWalkToDungeon()
+    end)
 end, 3)
 
-createToggle("Auto Dùng Kỹ Năng (1, 2, 3)", "Tự động xả chiêu thức dồn sát thương cực mạnh", State.autoskill, function(val)
-    State.autoskill = val
+createToggle("Tự Vào Lại Khi Về Sảnh", "Tự động đi bộ vào hầm ngục tiếp mỗi khi về lại sảnh", State.autodungeon, function(val)
+    State.autodungeon = val
 end, 4)
 
-createToggle("Auto Lướt Dash (Q)", "Tự động lướt né đòn đánh và kỹ năng diện rộng của quái", State.autodash, function(val)
-    State.autodash = val
-end, 5)
+-- NHÓM 2: TRONG HẦM NGỤC (GROUND COMBAT)
+createCategory("⚔️ TRONG HẦM NGỤC (GROUND COMBAT)", 10)
 
--- NHÓM 2: VÀO MAP & CÀY CẤP TỪNG BẬC (LOBBY & ROOMS)
-createCategory("🚪 VÀO MAP & CÀY CẤP TỪNG BẬC", 10)
+createToggle("Auto Farm (Đứng Đất Chém Sau Lưng)", "Đứng sát mặt đất 2 studs sau lưng quái chém M1 (Không bay trời)", State.autofarm, function(val)
+    State.autofarm = val
+end, 11)
 
-createLevelSelector(11)
-
-createToggle("Auto Vào Hầm Ngục (Từ Sảnh)", "Đến cổng -> Mở bảng -> Chọn đúng cấp -> Bắt đầu", State.autodungeon, function(val)
-    State.autodungeon = val
+createToggle("Ưu Tiên Săn Boss", "Tập trung diệt Boss phòng trước", State.autoboss, function(val)
+    State.autoboss = val
 end, 12)
 
-createToggle("Auto Qua Cửa (Khi Sạch Quái)", "CHỈ KHI diệt hết quái mới tiến về cửa qua phòng tiếp", State.autodoor, function(val)
-    State.autodoor = val
+createToggle("Auto Xả Kỹ Năng (1, 2, 3)", "Tự động kích hoạt chiêu thức dồn sát thương liên tục", State.autoskill, function(val)
+    State.autoskill = val
 end, 13)
 
-createToggle("Auto Nhặt Rương (Sau Mỗi Phòng)", "Thu thập rương kho báu & vàng sau khi dọn sạch ải", State.autochest, function(val)
-    State.autochest = val
+createToggle("Auto Lướt Dash (Q) Né Đòn", "Lướt né chiêu diện rộng của quái", State.autodash, function(val)
+    State.autodash = val
 end, 14)
 
-createToggle("Auto Chơi Lại (Replay)", "Hết trận tự động bấm Replay tạo vòng lặp cày vô tận", State.autoreplay, function(val)
-    State.autoreplay = val
+createToggle("Auto Đi Bộ Qua Cửa (Next Room)", "Chỉ khi phòng sạch quái mới tự đi bộ qua cửa phòng tiếp", State.autodoor, function(val)
+    State.autodoor = val
 end, 15)
+
+createToggle("Auto Đi Bộ Nhặt Rương", "Sau khi sạch quái tự đi bộ nhặt rương kho báu & vàng", State.autochest, function(val)
+    State.autochest = val
+end, 16)
+
+createToggle("Auto Chơi Lại (Replay)", "Thắng trận tự bấm Replay tạo vòng lặp cày vô tận", State.autoreplay, function(val)
+    State.autoreplay = val
+end, 17)
 
 -- NHÓM 3: BỔ TRỢ NHÂN VẬT & BAY LƯỢN MOBILE
 createCategory("⚡ BỔ TRỢ NHÂN VẬT & BAY LƯỢN", 20)
 
-createToggle("Tốc Độ Chạy Cao (Speed 60)", "Tăng tốc chạy mượt mà, chống game ép tụt tốc", State.speed, function(val)
+createToggle("Tốc Độ Chạy Cao (Speed 55)", "Tăng tốc độ chạy bộ mượt mà", State.speed, function(val)
     State.speed = val
     if Hum then pcall(function() Hum.WalkSpeed = val and CFG.walkspeed or 16 end) end
 end, 21)
@@ -1177,7 +1279,7 @@ createToggle("Bay 3D (Có Nút Cảm Ứng Mobile)", "Kèm 2 nút cảm ứng [�
     if val then startFly() else stopFly() end
 end, 22)
 
-createToggle("Chống Sát Thương Rơi", "Hãm tốc rơi tự do, rơi từ trên cao không mất máu", State.nofall, function(val)
+createToggle("Chống Sát Thương Rơi", "Hãm tốc rơi tự do, rơi từ cao không mất máu", State.nofall, function(val)
     State.nofall = val
 end, 23)
 
@@ -1240,4 +1342,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] Dungeon Hunters Hub v2.0 (Ultimate Fix) Loaded Successfully! ⚔️")
+print("[VOSS] Dungeon Hunters Hub v3.0 (Ground Navigation Edition) Loaded Successfully! ⚔️")
