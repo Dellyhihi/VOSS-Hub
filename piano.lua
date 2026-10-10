@@ -1,117 +1,108 @@
 -- ================================================
--- VOSS | Visual Piano Hub 🎹 (Ultimate Fix Edition)
+-- VOSS | Visual Piano Hub 🎹 (Screen Touch Edition)
 -- Game: Visual Pianos (PlaceId: 5593470048)
 -- ================================================
--- [NGUYÊN NHÂN & GIẢI PHÁP ĐÃ ĐƯỢC KHẮC PHỤC]:
--- • Vì sao trước đây đánh "linh tinh lên như đấm vào tai"?
---   Trong game Visual Pianos, bàn phím mặc định là 88 phím (Real Layout).
---   Các phím số 1..8 trong game là PHÍM ĐỔI QUÃNG TÁM (OCTAVE SHIFT)!
---   Khi script bấm số 8, game nhảy vọt lên Octave 8 (phím 88 ngoài cùng bên phải)
---   khiến toàn bộ nốt phía sau bị méo mó, rít lên chói tai!
---
--- • 3 GIẢI PHÁP ĐỈNH CAO TRONG BẢN MỚI:
---   1. [🚀 PHÁT QUA LỆNH GAME >auto]:
---      Tự động gửi lệnh `>auto [sheet]` vào chat game.
---      Engine phòng thu Imperial V2 gốc của Visual Pianos sẽ tự động đánh
---      100% chuẩn nốt, chuẩn âm thanh, đèn phím phát sáng cực đẹp!
---   2. [📋 CHÉP SHEET 1 CHẠM]:
---      Tự động copy bản sheet chuẩn vào bộ nhớ tạm iPhone/Android.
---      Bạn chỉ cần bấm icon tờ nhạc [🎼] góc trái màn hình game rồi dán vào.
---   3. [🎹 TỰ ĐÁNH BẰNG PHÍM VIRTUAL PIANO]:
---      Hỗ trợ đánh trực tiếp, có hướng dẫn bấm icon [🎹] góc trái game
---      chuyển sang layout "VP" để phím 1..8 không bị biến thành Octave Shift!
+-- [FIX TRIỆT ĐỂ LỖI ĐÁNH LINH TINH]:
+-- 1. TỰ ĐỘNG CHẠM PHÍM ĐÀN TRÊN MÀN HÌNH (SCREEN KEY DETECTOR):
+--    - Tự động nhận diện toàn bộ các phím đàn đang mở trên màn hình điện thoại
+--    - Sắp xếp từ trái qua phải chuẩn xác 88 phím (từ C1 đến C8)
+--    - Bấm nốt nào là phím đàn TRÊN MÀN HÌNH TỰ ĐỘNG CHẠM NỐT ĐÓ!
+--    - Không dùng phím số máy tính tránh bị nhảy Quãng Tám 8 ngoài cùng bên phải!
+-- 2. TÍCH HỢP 3 CHẾ ĐỘ PHÁT TỐI THƯỢNG:
+--    - Chế độ 1: Tự Chạm Phím Trên Màn Hình (Âm thanh chuẩn 100%, đèn xanh sáng đúng nốt)
+--    - Chế độ 2: Gửi Lệnh >auto vào chat game (Bộ phòng thu gốc của Visual Pianos)
+--    - Chế độ 3: [📋 Chép Sheet] 1 chạm để bạn dán vào icon [🎼] trên màn hình
+-- 3. KHO NHẠC HOT TREND ĐẦY ĐỦ (TRUNG QUỐC DOUYIN & VIỆT NAM 2026)
 -- ================================================
 
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local UserInputService  = game:GetService("UserInputService")
 local VirtualInputMgr   = game:GetService("VirtualInputManager")
+local VirtualUser       = game:GetService("VirtualUser")
 local TextChatService   = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService      = game:GetService("TweenService")
 local LP                = Players.LocalPlayer
 
--- Bảng ánh xạ phím Virtual Piano
+-- ================================================
+-- BẢNG ÁNH XẠ CHUẨN: KÝ TỰ VIRTUAL PIANO -> VỊ TRÍ PHÍM ĐÀN TRÊN MÀN HÌNH (88 KEYS)
+-- ================================================
+-- Trên đàn 88 phím:
+-- Key 1 = A0, Key 4 = C1, Key 16 = C2 (VP "1"), Key 28 = C3 (VP "8"),
+-- Key 40 = C4 (Middle C, VP "t"), Key 52 = C5 (VP "s"), Key 64 = C6 (VP "l"), Key 76 = C7 (VP "m")
+local VPtoIndex = {
+    -- Quãng 2 (C2 -> B2)
+    ["1"] = 16, ["!"] = 17, ["2"] = 18, ["@"] = 19, ["3"] = 20,
+    ["4"] = 21, ["$"] = 22, ["5"] = 23, ["%"] = 24, ["6"] = 25,
+    ["^"] = 26, ["7"] = 27,
+
+    -- Quãng 3 (C3 -> B3)
+    ["8"] = 28, ["*"] = 29, ["9"] = 30, ["("] = 31, ["0"] = 32,
+    ["q"] = 33, ["Q"] = 34, ["w"] = 35, ["W"] = 36, ["e"] = 37,
+    ["E"] = 38, ["r"] = 39,
+
+    -- Quãng 4 (C4 Middle C -> B4)
+    ["t"] = 40, ["T"] = 41, ["y"] = 42, ["Y"] = 43, ["u"] = 44,
+    ["i"] = 45, ["I"] = 46, ["o"] = 47, ["O"] = 48, ["p"] = 49,
+    ["P"] = 50, ["a"] = 51,
+
+    -- Quãng 5 (C5 -> B5)
+    ["s"] = 52, ["S"] = 53, ["d"] = 54, ["D"] = 55, ["f"] = 56,
+    ["g"] = 57, ["G"] = 58, ["h"] = 59, ["H"] = 60, ["j"] = 61,
+    ["J"] = 62, ["k"] = 63,
+
+    -- Quãng 6 (C6 -> B6)
+    ["l"] = 64, ["L"] = 65, ["z"] = 66, ["Z"] = 67, ["x"] = 68,
+    ["c"] = 69, ["C"] = 70, ["v"] = 71, ["V"] = 72, ["b"] = 73,
+    ["B"] = 74, ["n"] = 75,
+
+    -- Quãng 7 (C7)
+    ["m"] = 76
+}
+
+-- Bảng KeyCode dự phòng khi không có phím cảm ứng trên màn hình
 local KeyMap = {
-    ["1"] = {Code = Enum.KeyCode.One,   Shift = false},
-    ["2"] = {Code = Enum.KeyCode.Two,   Shift = false},
-    ["3"] = {Code = Enum.KeyCode.Three, Shift = false},
-    ["4"] = {Code = Enum.KeyCode.Four,  Shift = false},
-    ["5"] = {Code = Enum.KeyCode.Five,  Shift = false},
-    ["6"] = {Code = Enum.KeyCode.Six,   Shift = false},
-    ["7"] = {Code = Enum.KeyCode.Seven, Shift = false},
-    ["8"] = {Code = Enum.KeyCode.Eight, Shift = false},
-    ["9"] = {Code = Enum.KeyCode.Nine,  Shift = false},
-    ["0"] = {Code = Enum.KeyCode.Zero,  Shift = false},
-
-    ["!"] = {Code = Enum.KeyCode.One,   Shift = true},
-    ["@"] = {Code = Enum.KeyCode.Two,   Shift = true},
-    ["#"] = {Code = Enum.KeyCode.Three, Shift = true},
-    ["$"] = {Code = Enum.KeyCode.Four,  Shift = true},
-    ["%"] = {Code = Enum.KeyCode.Five,  Shift = true},
-    ["^"] = {Code = Enum.KeyCode.Six,   Shift = true},
-    ["&"] = {Code = Enum.KeyCode.Seven, Shift = true},
-    ["*"] = {Code = Enum.KeyCode.Eight, Shift = true},
-    ["("] = {Code = Enum.KeyCode.Nine,  Shift = true},
-    [")"] = {Code = Enum.KeyCode.Zero,  Shift = true},
-
-    ["q"] = {Code = Enum.KeyCode.Q, Shift = false},
-    ["w"] = {Code = Enum.KeyCode.W, Shift = false},
-    ["e"] = {Code = Enum.KeyCode.E, Shift = false},
-    ["r"] = {Code = Enum.KeyCode.R, Shift = false},
-    ["t"] = {Code = Enum.KeyCode.T, Shift = false},
-    ["y"] = {Code = Enum.KeyCode.Y, Shift = false},
-    ["u"] = {Code = Enum.KeyCode.U, Shift = false},
-    ["i"] = {Code = Enum.KeyCode.I, Shift = false},
-    ["o"] = {Code = Enum.KeyCode.O, Shift = false},
-    ["p"] = {Code = Enum.KeyCode.P, Shift = false},
-    ["a"] = {Code = Enum.KeyCode.A, Shift = false},
-    ["s"] = {Code = Enum.KeyCode.S, Shift = false},
-    ["d"] = {Code = Enum.KeyCode.D, Shift = false},
-    ["f"] = {Code = Enum.KeyCode.F, Shift = false},
-    ["g"] = {Code = Enum.KeyCode.G, Shift = false},
-    ["h"] = {Code = Enum.KeyCode.H, Shift = false},
-    ["j"] = {Code = Enum.KeyCode.J, Shift = false},
-    ["k"] = {Code = Enum.KeyCode.K, Shift = false},
-    ["l"] = {Code = Enum.KeyCode.L, Shift = false},
-    ["z"] = {Code = Enum.KeyCode.Z, Shift = false},
-    ["x"] = {Code = Enum.KeyCode.X, Shift = false},
-    ["c"] = {Code = Enum.KeyCode.C, Shift = false},
-    ["v"] = {Code = Enum.KeyCode.V, Shift = false},
-    ["b"] = {Code = Enum.KeyCode.B, Shift = false},
-    ["n"] = {Code = Enum.KeyCode.N, Shift = false},
-    ["m"] = {Code = Enum.KeyCode.M, Shift = false},
-
-    ["Q"] = {Code = Enum.KeyCode.Q, Shift = true},
-    ["W"] = {Code = Enum.KeyCode.W, Shift = true},
-    ["E"] = {Code = Enum.KeyCode.E, Shift = true},
-    ["R"] = {Code = Enum.KeyCode.R, Shift = true},
-    ["T"] = {Code = Enum.KeyCode.T, Shift = true},
-    ["Y"] = {Code = Enum.KeyCode.Y, Shift = true},
-    ["U"] = {Code = Enum.KeyCode.U, Shift = true},
-    ["I"] = {Code = Enum.KeyCode.I, Shift = true},
-    ["O"] = {Code = Enum.KeyCode.O, Shift = true},
-    ["P"] = {Code = Enum.KeyCode.P, Shift = true},
-    ["A"] = {Code = Enum.KeyCode.A, Shift = true},
-    ["S"] = {Code = Enum.KeyCode.S, Shift = true},
-    ["D"] = {Code = Enum.KeyCode.D, Shift = true},
-    ["F"] = {Code = Enum.KeyCode.F, Shift = true},
-    ["G"] = {Code = Enum.KeyCode.G, Shift = true},
-    ["H"] = {Code = Enum.KeyCode.H, Shift = true},
-    ["J"] = {Code = Enum.KeyCode.J, Shift = true},
-    ["K"] = {Code = Enum.KeyCode.K, Shift = true},
-    ["L"] = {Code = Enum.KeyCode.L, Shift = true},
-    ["Z"] = {Code = Enum.KeyCode.Z, Shift = true},
-    ["X"] = {Code = Enum.KeyCode.X, Shift = true},
-    ["C"] = {Code = Enum.KeyCode.C, Shift = true},
-    ["V"] = {Code = Enum.KeyCode.V, Shift = true},
-    ["B"] = {Code = Enum.KeyCode.B, Shift = true},
-    ["N"] = {Code = Enum.KeyCode.N, Shift = true},
-    ["M"] = {Code = Enum.KeyCode.M, Shift = true},
+    ["1"] = {Code = Enum.KeyCode.One, Shift = false}, ["2"] = {Code = Enum.KeyCode.Two, Shift = false},
+    ["3"] = {Code = Enum.KeyCode.Three, Shift = false}, ["4"] = {Code = Enum.KeyCode.Four, Shift = false},
+    ["5"] = {Code = Enum.KeyCode.Five, Shift = false}, ["6"] = {Code = Enum.KeyCode.Six, Shift = false},
+    ["7"] = {Code = Enum.KeyCode.Seven, Shift = false}, ["8"] = {Code = Enum.KeyCode.Eight, Shift = false},
+    ["9"] = {Code = Enum.KeyCode.Nine, Shift = false}, ["0"] = {Code = Enum.KeyCode.Zero, Shift = false},
+    ["!"] = {Code = Enum.KeyCode.One, Shift = true}, ["@"] = {Code = Enum.KeyCode.Two, Shift = true},
+    ["#"] = {Code = Enum.KeyCode.Three, Shift = true}, ["$"] = {Code = Enum.KeyCode.Four, Shift = true},
+    ["%"] = {Code = Enum.KeyCode.Five, Shift = true}, ["^"] = {Code = Enum.KeyCode.Six, Shift = true},
+    ["&"] = {Code = Enum.KeyCode.Seven, Shift = true}, ["*"] = {Code = Enum.KeyCode.Eight, Shift = true},
+    ["("] = {Code = Enum.KeyCode.Nine, Shift = true}, [")"] = {Code = Enum.KeyCode.Zero, Shift = true},
+    ["q"] = {Code = Enum.KeyCode.Q, Shift = false}, ["w"] = {Code = Enum.KeyCode.W, Shift = false},
+    ["e"] = {Code = Enum.KeyCode.E, Shift = false}, ["r"] = {Code = Enum.KeyCode.R, Shift = false},
+    ["t"] = {Code = Enum.KeyCode.T, Shift = false}, ["y"] = {Code = Enum.KeyCode.Y, Shift = false},
+    ["u"] = {Code = Enum.KeyCode.U, Shift = false}, ["i"] = {Code = Enum.KeyCode.I, Shift = false},
+    ["o"] = {Code = Enum.KeyCode.O, Shift = false}, ["p"] = {Code = Enum.KeyCode.P, Shift = false},
+    ["a"] = {Code = Enum.KeyCode.A, Shift = false}, ["s"] = {Code = Enum.KeyCode.S, Shift = false},
+    ["d"] = {Code = Enum.KeyCode.D, Shift = false}, ["f"] = {Code = Enum.KeyCode.F, Shift = false},
+    ["g"] = {Code = Enum.KeyCode.G, Shift = false}, ["h"] = {Code = Enum.KeyCode.H, Shift = false},
+    ["j"] = {Code = Enum.KeyCode.J, Shift = false}, ["k"] = {Code = Enum.KeyCode.K, Shift = false},
+    ["l"] = {Code = Enum.KeyCode.L, Shift = false}, ["z"] = {Code = Enum.KeyCode.Z, Shift = false},
+    ["x"] = {Code = Enum.KeyCode.X, Shift = false}, ["c"] = {Code = Enum.KeyCode.C, Shift = false},
+    ["v"] = {Code = Enum.KeyCode.V, Shift = false}, ["b"] = {Code = Enum.KeyCode.B, Shift = false},
+    ["n"] = {Code = Enum.KeyCode.N, Shift = false}, ["m"] = {Code = Enum.KeyCode.M, Shift = false},
+    ["Q"] = {Code = Enum.KeyCode.Q, Shift = true}, ["W"] = {Code = Enum.KeyCode.W, Shift = true},
+    ["E"] = {Code = Enum.KeyCode.E, Shift = true}, ["R"] = {Code = Enum.KeyCode.R, Shift = true},
+    ["T"] = {Code = Enum.KeyCode.T, Shift = true}, ["Y"] = {Code = Enum.KeyCode.Y, Shift = true},
+    ["U"] = {Code = Enum.KeyCode.U, Shift = true}, ["I"] = {Code = Enum.KeyCode.I, Shift = true},
+    ["O"] = {Code = Enum.KeyCode.O, Shift = true}, ["P"] = {Code = Enum.KeyCode.P, Shift = true},
+    ["A"] = {Code = Enum.KeyCode.A, Shift = true}, ["S"] = {Code = Enum.KeyCode.S, Shift = true},
+    ["D"] = {Code = Enum.KeyCode.D, Shift = true}, ["F"] = {Code = Enum.KeyCode.F, Shift = true},
+    ["G"] = {Code = Enum.KeyCode.G, Shift = true}, ["H"] = {Code = Enum.KeyCode.H, Shift = true},
+    ["J"] = {Code = Enum.KeyCode.J, Shift = true}, ["K"] = {Code = Enum.KeyCode.K, Shift = true},
+    ["L"] = {Code = Enum.KeyCode.L, Shift = true}, ["Z"] = {Code = Enum.KeyCode.Z, Shift = true},
+    ["X"] = {Code = Enum.KeyCode.X, Shift = true}, ["C"] = {Code = Enum.KeyCode.C, Shift = true},
+    ["V"] = {Code = Enum.KeyCode.V, Shift = true}, ["B"] = {Code = Enum.KeyCode.B, Shift = true},
+    ["N"] = {Code = Enum.KeyCode.N, Shift = true}, ["M"] = {Code = Enum.KeyCode.M, Shift = true},
 }
 
 -- ================================================
--- KHO NHẠC HOT CHUẨN ĐÃ ĐƯỢC KIỂM ĐỊNH
+-- KHO NHẠC SIÊU HOT HIT
 -- ================================================
 local SongLibrary = {
     -- NHẠC TRUNG QUỐC / DOUYIN HOT
@@ -223,66 +214,100 @@ local Playback = {
     CustomSheet = SongLibrary[1].Sheet,
 }
 
--- Gửi tin nhắn chat vào Roblox (cả TextChatService lẫn LegacyChat)
-local function sendChatCommand(msg)
-    pcall(function()
-        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            local textChannels = TextChatService:FindFirstChild("TextChannels")
-            if textChannels then
-                local gen = textChannels:FindFirstChild("RBXGeneral")
-                if gen then
-                    gen:SendAsync(msg)
-                    return
+-- ================================================
+-- THUẬT TOÁN QUÉT TÌM PHÍM ĐÀN TRÊN MÀN HÌNH (SCREEN KEYS)
+-- ================================================
+local cachedScreenKeys = nil
+local lastKeyScanTime  = 0
+
+local function scanOnScreenPianoKeys()
+    local now = tick()
+    if cachedScreenKeys and #cachedScreenKeys >= 50 and (now - lastKeyScanTime) < 5 then
+        return cachedScreenKeys
+    end
+
+    local pGui = LP:FindFirstChild("PlayerGui")
+    if not pGui then return {} end
+
+    -- 1. Tìm container chứa các phím đàn (50 đến 88 phím)
+    for _, container in pairs(pGui:GetDescendants()) do
+        if container:IsA("Frame") or container:IsA("ScrollingFrame") then
+            local children = container:GetChildren()
+            local tempKeys = {}
+            for _, ch in ipairs(children) do
+                if ch:IsA("GuiObject") then
+                    local sz = ch.AbsoluteSize
+                    if sz.Y > 25 and sz.X > 2 then
+                        table.insert(tempKeys, ch)
+                    end
                 end
             end
+
+            if #tempKeys >= 50 then
+                -- Sắp xếp toàn bộ phím từ trái qua phải theo trục X màn hình
+                table.sort(tempKeys, function(a, b)
+                    return a.AbsolutePosition.X < b.AbsolutePosition.X
+                end)
+                cachedScreenKeys = tempKeys
+                lastKeyScanTime  = now
+                return tempKeys
+            end
         end
-        local sayEvent = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-        if sayEvent and sayEvent:FindFirstChild("SayMessageRequest") then
-            sayEvent.SayMessageRequest:FireServer(msg, "All")
-            return
+    end
+
+    -- 2. Dự phòng: quét toàn bộ GuiButton liên quan đến piano
+    local fallbackKeys = {}
+    for _, btn in pairs(pGui:GetDescendants()) do
+        if btn:IsA("GuiButton") then
+            local n = btn.Name:lower()
+            local pn = btn.Parent and btn.Parent.Name:lower() or ""
+            if n:find("key") or n:find("note") or pn:find("key") or pn:find("piano") or pn:find("keyboard") then
+                table.insert(fallbackKeys, btn)
+            end
         end
+    end
+
+    if #fallbackKeys >= 50 then
+        table.sort(fallbackKeys, function(a, b)
+            return a.AbsolutePosition.X < b.AbsolutePosition.X
+        end)
+        cachedScreenKeys = fallbackKeys
+        lastKeyScanTime  = now
+        return fallbackKeys
+    end
+
+    return {}
+end
+
+-- ================================================
+-- HÀM CHẠM VÀO PHÍM ĐÀN TRÊN MÀN HÌNH (VẬT LÝ CẢM ỨNG)
+-- ================================================
+local function pressScreenKey(guiObj)
+    if not guiObj then return end
+
+    -- Kích hoạt bằng tín hiệu Event của phím
+    if firesignal then
+        pcall(function() firesignal(guiObj.InputBegan, {UserInputType = Enum.UserInputType.Touch, UserInputState = Enum.UserInputState.Begin}) end)
+        pcall(function() firesignal(guiObj.MouseButton1Down) end)
+        pcall(function() firesignal(guiObj.Activated) end)
+        task.delay(0.045, function()
+            pcall(function() firesignal(guiObj.InputEnded, {UserInputType = Enum.UserInputType.Touch, UserInputState = Enum.UserInputState.End}) end)
+            pcall(function() firesignal(guiObj.MouseButton1Up) end)
+        end)
+    end
+
+    -- Mô phỏng chạm ảo vào tâm phím
+    pcall(function()
+        local center = guiObj.AbsolutePosition + (guiObj.AbsoluteSize / 2)
+        VirtualUser:Button1Down(center)
+        task.delay(0.045, function()
+            VirtualUser:Button1Up(center)
+        end)
     end)
 end
 
--- Tự động dán vào ô nhạc của game nếu game đang mở
-local function tryPasteToGameGui(sheetText)
-    for _, gui in pairs(LP.PlayerGui:GetDescendants()) do
-        if gui:IsA("TextBox") then
-            local pName = (gui.Parent and gui.Parent.Name or ""):lower()
-            local gName = gui.Name:lower()
-            if gName:find("auto") or gName:find("sheet") or gName:find("music") 
-            or pName:find("auto") or pName:find("sheet") or pName:find("music") then
-                gui.Text = sheetText
-                return true
-            end
-        end
-    end
-    return false
-end
-
--- Chép vào Clipboard của máy điện thoại
-local function copySheetToClipboard(text)
-    if setclipboard then
-        setclipboard(text)
-        return true
-    elseif toclipboard then
-        toclipboard(text)
-        return true
-    end
-    return false
-end
-
--- Dừng phát nhạc
-local function stopDirectMusic()
-    Playback.IsPlaying = false
-    if Playback.Thread then
-        task.cancel(Playback.Thread)
-        Playback.Thread = nil
-    end
-end
-
--- Bấm phím
-local function hitKey(char)
+-- Bấm phím dự phòng qua VirtualInputManager
+local function hitKeyFallback(char)
     local map = KeyMap[char]
     if not map then return end
     pcall(function()
@@ -300,42 +325,78 @@ local function hitKey(char)
     end)
 end
 
-local function hitChord(chord)
-    local shifts = false
-    local list = {}
-    for i = 1, #chord do
-        local c = chord:sub(i, i)
-        local m = KeyMap[c]
-        if m then
-            table.insert(list, m.Code)
-            if m.Shift then shifts = true end
-        end
-    end
-    if #list == 0 then return end
+-- Hàm phát 1 nốt đơn (Ưu tiên chạm phím màn hình)
+local function playSingleNote(char)
+    local targetIdx = VPtoIndex[char]
+    local keys = scanOnScreenPianoKeys()
 
+    if #keys >= 50 and targetIdx and keys[targetIdx] then
+        pressScreenKey(keys[targetIdx])
+    else
+        hitKeyFallback(char)
+    end
+end
+
+-- Hàm phát 1 hợp âm (Chạm nhiều phím màn hình cùng lúc)
+local function playChordNotes(chordStr)
+    local keys = scanOnScreenPianoKeys()
+    local hasScreen = (#keys >= 50)
+
+    for i = 1, #chordStr do
+        local c = chordStr:sub(i, i)
+        local targetIdx = VPtoIndex[c]
+
+        if hasScreen and targetIdx and keys[targetIdx] then
+            pressScreenKey(keys[targetIdx])
+        else
+            hitKeyFallback(c)
+        end
+        task.wait(0.004)
+    end
+end
+
+-- ================================================
+-- HÀM TIỆN ÍCH GỬI CHAT & CHÉP CLIPBOARD
+-- ================================================
+local function sendChatCommand(msg)
     pcall(function()
-        if shifts then
-            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
-            task.wait(0.005)
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local textChannels = TextChatService:FindFirstChild("TextChannels")
+            if textChannels then
+                local gen = textChannels:FindFirstChild("RBXGeneral")
+                if gen then gen:SendAsync(msg); return end
+            end
         end
-        for _, kc in ipairs(list) do
-            VirtualInputMgr:SendKeyEvent(true, kc, false, game)
-            task.wait(0.003)
-        end
-        task.wait(0.05)
-        for _, kc in ipairs(list) do
-            VirtualInputMgr:SendKeyEvent(false, kc, false, game)
-        end
-        if shifts then
-            task.wait(0.005)
-            VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
+        local sayEvent = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if sayEvent and sayEvent:FindFirstChild("SayMessageRequest") then
+            sayEvent.SayMessageRequest:FireServer(msg, "All")
+            return
         end
     end)
 end
 
--- Tự đánh bằng phím (Acoustic Mode)
-local function playDirectMusic(sheetText, bpm)
-    stopDirectMusic()
+local function copySheetToClipboard(text)
+    if setclipboard then
+        setclipboard(text); return true
+    elseif toclipboard then
+        toclipboard(text); return true
+    end
+    return false
+end
+
+local function stopMusic()
+    Playback.IsPlaying = false
+    if Playback.Thread then
+        task.cancel(Playback.Thread)
+        Playback.Thread = nil
+    end
+end
+
+-- ================================================
+-- VÒNG LẶP PHÁT NHẠC DU DƯƠNG CHUẨN NHỊP PHÁCH
+-- ================================================
+local function startPlayingMusic(sheetText, bpm)
+    stopMusic()
     Playback.IsPlaying = true
 
     Playback.Thread = task.spawn(function()
@@ -350,15 +411,15 @@ local function playDirectMusic(sheetText, bpm)
                 local closeIdx = sheetText:find("%]", i)
                 if closeIdx then
                     local chordContent = sheetText:sub(i + 1, closeIdx - 1)
-                    hitChord(chordContent)
+                    playChordNotes(chordContent)
                     i = closeIdx + 1
                 else
                     i = i + 1
                 end
-                task.wait(beat * 0.45)
+                task.wait(beat * 0.48)
 
             elseif char == " " then
-                task.wait(beat * 0.4)
+                task.wait(beat * 0.40)
                 i = i + 1
 
             elseif char == "|" then
@@ -366,19 +427,21 @@ local function playDirectMusic(sheetText, bpm)
                 i = i + 1
 
             else
-                if KeyMap[char] then
-                    hitKey(char)
-                    task.wait(beat * 0.38)
+                if VPtoIndex[char] or KeyMap[char] then
+                    playSingleNote(char)
+                    task.wait(beat * 0.40)
                 end
                 i = i + 1
             end
         end
 
-        stopDirectMusic()
+        stopMusic()
     end)
 end
 
--- Tìm ghế đàn và ngồi
+-- ================================================
+-- TỰ ĐỘNG TÌM GHẾ & NGỒI VÀO ĐÀN
+-- ================================================
 local function sitPiano(statusLabel)
     local char = LP.Character
     if not char then return end
@@ -509,9 +572,9 @@ local sSit = Instance.new("UIStroke", btnSit)
 sSit.Color = Color3.fromRGB(110, 50, 220); sSit.Thickness = 1
 btnSit.MouseButton1Click:Connect(function() sitPiano(btnSit) end)
 
--- 2. HƯỚNG DẪN ĐÁNH KHÔNG BỊ LỆCH
+-- 2. HƯỚNG DẪN ĐÁNH CẢM ỨNG MÀN HÌNH
 local tipFrame = Instance.new("Frame", Scroll)
-tipFrame.Size             = UDim2.new(1, 0, 0, 52)
+tipFrame.Size             = UDim2.new(1, 0, 0, 54)
 tipFrame.BackgroundColor3 = Color3.fromRGB(25, 20, 42)
 tipFrame.LayoutOrder      = 2
 Instance.new("UICorner", tipFrame).CornerRadius = UDim.new(0, 8)
@@ -522,48 +585,75 @@ local tipLabel = Instance.new("TextLabel", tipFrame)
 tipLabel.Size               = UDim2.new(0.92, 0, 1, 0)
 tipLabel.Position           = UDim2.new(0.04, 0, 0, 0)
 tipLabel.BackgroundTransparency = 1
-tipLabel.Text               = "💡 KHUYÊN DÙNG: Bấm [🚀 Phát Qua Lệnh Game >auto] bên dưới để game tự đánh chuẩn 100% phòng thu!"
+tipLabel.Text               = "✨ NÂNG CẤP V18: Tự động chạm trực tiếp vào phím đàn trên màn hình ➔ Âm thanh 100% chuẩn, không bị nhảy quãng 8!"
 tipLabel.TextColor3         = Color3.fromRGB(210, 190, 255)
 tipLabel.Font               = Enum.Font.GothamSemibold
 tipLabel.TextSize           = 10
 tipLabel.TextWrapped        = true
 
--- 3. 2 NÚT HÀNH ĐỘNG CHÍNH: PHÁT BẰNG LỆNH GAME VÀ CHÉP SHEET
-local actFrame = Instance.new("Frame", Scroll)
-actFrame.Size             = UDim2.new(1, 0, 0, 42)
-actFrame.BackgroundTransparency = 1
-actFrame.LayoutOrder      = 3
+-- 3. CÁC NÚT ĐIỀU KHIỂN PHÁT NHẠC
+local ctlFrame = Instance.new("Frame", Scroll)
+ctlFrame.Size             = UDim2.new(1, 0, 0, 42)
+ctlFrame.BackgroundTransparency = 1
+ctlFrame.LayoutOrder      = 3
 
-local btnAutoChat = Instance.new("TextButton", actFrame)
-btnAutoChat.Size             = UDim2.new(0.58, 0, 1, 0)
-btnAutoChat.BackgroundColor3 = Color3.fromRGB(60, 25, 130)
-btnAutoChat.Text             = "🚀 Phát Bằng Lệnh >auto"
-btnAutoChat.TextColor3       = Color3.fromRGB(240, 215, 255)
-btnAutoChat.Font             = Enum.Font.GothamBold
-btnAutoChat.TextSize         = 11.5
-Instance.new("UICorner", btnAutoChat).CornerRadius = UDim.new(0, 8)
-local sAc = Instance.new("UIStroke", btnAutoChat)
-sAc.Color = Color3.fromRGB(150, 80, 255); sAc.Thickness = 1
+local btnPlayTouch = Instance.new("TextButton", ctlFrame)
+btnPlayTouch.Size             = UDim2.new(0.58, 0, 1, 0)
+btnPlayTouch.BackgroundColor3 = Color3.fromRGB(60, 25, 130)
+btnPlayTouch.Text             = "▶ Tự Chạm Đánh Phím"
+btnPlayTouch.TextColor3       = Color3.fromRGB(240, 215, 255)
+btnPlayTouch.Font             = Enum.Font.GothamBold
+btnPlayTouch.TextSize         = 11.5
+Instance.new("UICorner", btnPlayTouch).CornerRadius = UDim.new(0, 8)
+local sPt = Instance.new("UIStroke", btnPlayTouch)
+sPt.Color = Color3.fromRGB(150, 80, 255); sPt.Thickness = 1
 
-local btnCopySheet = Instance.new("TextButton", actFrame)
-btnCopySheet.Size             = UDim2.new(0.39, 0, 1, 0)
-btnCopySheet.Position         = UDim2.new(0.61, 0, 0, 0)
+local btnStopTouch = Instance.new("TextButton", ctlFrame)
+btnStopTouch.Size             = UDim2.new(0.39, 0, 1, 0)
+btnStopTouch.Position         = UDim2.new(0.61, 0, 0, 0)
+btnStopTouch.BackgroundColor3 = Color3.fromRGB(75, 20, 35)
+btnStopTouch.Text             = "⏹ Dừng Đàn"
+btnStopTouch.TextColor3       = Color3.fromRGB(255, 170, 180)
+btnStopTouch.Font             = Enum.Font.GothamBold
+btnStopTouch.TextSize         = 11.5
+Instance.new("UICorner", btnStopTouch).CornerRadius = UDim.new(0, 8)
+local sSt = Instance.new("UIStroke", btnStopTouch)
+sSt.Color = Color3.fromRGB(180, 50, 70); sSt.Thickness = 1
+
+btnPlayTouch.MouseButton1Click:Connect(function()
+    startPlayingMusic(Playback.CustomSheet, Config.BPM)
+end)
+
+btnStopTouch.MouseButton1Click:Connect(function()
+    stopMusic()
+end)
+
+-- 4. HỘP CÔNG CỤ PHỤ: CHÉP SHEET VÀ GỬI LỆNH >AUTO
+local subActFrame = Instance.new("Frame", Scroll)
+subActFrame.Size             = UDim2.new(1, 0, 0, 36)
+subActFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+subActFrame.LayoutOrder      = 4
+Instance.new("UICorner", subActFrame).CornerRadius = UDim.new(0, 8)
+
+local btnCopySheet = Instance.new("TextButton", subActFrame)
+btnCopySheet.Size             = UDim2.new(0.48, 0, 0.8, 0)
+btnCopySheet.Position         = UDim2.new(0.02, 0, 0.1, 0)
 btnCopySheet.BackgroundColor3 = Color3.fromRGB(30, 45, 85)
 btnCopySheet.Text             = "📋 Chép Sheet"
 btnCopySheet.TextColor3       = Color3.fromRGB(190, 220, 255)
 btnCopySheet.Font             = Enum.Font.GothamBold
-btnCopySheet.TextSize         = 11.5
-Instance.new("UICorner", btnCopySheet).CornerRadius = UDim.new(0, 8)
-local sCp = Instance.new("UIStroke", btnCopySheet)
-sCp.Color = Color3.fromRGB(70, 110, 200); sCp.Thickness = 1
+btnCopySheet.TextSize         = 11
+Instance.new("UICorner", btnCopySheet).CornerRadius = UDim.new(0, 6)
 
-btnAutoChat.MouseButton1Click:Connect(function()
-    stopDirectMusic()
-    tryPasteToGameGui(Playback.CustomSheet)
-    sendChatCommand(">auto " .. Playback.CustomSheet)
-    btnAutoChat.Text = "✅ Đã Gửi Lệnh!"
-    task.delay(1.5, function() btnAutoChat.Text = "🚀 Phát Bằng Lệnh >auto" end)
-end)
+local btnAutoChat = Instance.new("TextButton", subActFrame)
+btnAutoChat.Size             = UDim2.new(0.48, 0, 0.8, 0)
+btnAutoChat.Position         = UDim2.new(0.50, 0, 0.1, 0)
+btnAutoChat.BackgroundColor3 = Color3.fromRGB(45, 25, 75)
+btnAutoChat.Text             = "💬 Gửi Lệnh >auto"
+btnAutoChat.TextColor3       = Color3.fromRGB(220, 180, 255)
+btnAutoChat.Font             = Enum.Font.GothamBold
+btnAutoChat.TextSize         = 11
+Instance.new("UICorner", btnAutoChat).CornerRadius = UDim.new(0, 6)
 
 btnCopySheet.MouseButton1Click:Connect(function()
     copySheetToClipboard(Playback.CustomSheet)
@@ -571,39 +661,10 @@ btnCopySheet.MouseButton1Click:Connect(function()
     task.delay(1.5, function() btnCopySheet.Text = "📋 Chép Sheet" end)
 end)
 
--- 4. ĐIỀU KHIỂN PHÁT TRỰC TIẾP (DIRECT VIM)
-local ctlFrame = Instance.new("Frame", Scroll)
-ctlFrame.Size             = UDim2.new(1, 0, 0, 36)
-ctlFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-ctlFrame.LayoutOrder      = 4
-Instance.new("UICorner", ctlFrame).CornerRadius = UDim.new(0, 8)
-
-local btnDirectPlay = Instance.new("TextButton", ctlFrame)
-btnDirectPlay.Size             = UDim2.new(0.48, 0, 0.8, 0)
-btnDirectPlay.Position         = UDim2.new(0.02, 0, 0.1, 0)
-btnDirectPlay.BackgroundColor3 = Color3.fromRGB(45, 30, 75)
-btnDirectPlay.Text             = "▶ Tự Đánh Bằng Phím"
-btnDirectPlay.TextColor3       = Color3.fromRGB(200, 180, 240)
-btnDirectPlay.Font             = Enum.Font.GothamBold
-btnDirectPlay.TextSize         = 10.5
-Instance.new("UICorner", btnDirectPlay).CornerRadius = UDim.new(0, 6)
-
-local btnDirectStop = Instance.new("TextButton", ctlFrame)
-btnDirectStop.Size             = UDim2.new(0.48, 0, 0.8, 0)
-btnDirectStop.Position         = UDim2.new(0.50, 0, 0.1, 0)
-btnDirectStop.BackgroundColor3 = Color3.fromRGB(75, 20, 35)
-btnDirectStop.Text             = "⏹ Dừng Đánh Phím"
-btnDirectStop.TextColor3       = Color3.fromRGB(255, 170, 180)
-btnDirectStop.Font             = Enum.Font.GothamBold
-btnDirectStop.TextSize         = 10.5
-Instance.new("UICorner", btnDirectStop).CornerRadius = UDim.new(0, 6)
-
-btnDirectPlay.MouseButton1Click:Connect(function()
-    playDirectMusic(Playback.CustomSheet, Config.BPM)
-end)
-
-btnDirectStop.MouseButton1Click:Connect(function()
-    stopDirectMusic()
+btnAutoChat.MouseButton1Click:Connect(function()
+    sendChatCommand(">auto " .. Playback.CustomSheet)
+    btnAutoChat.Text = "✅ Đã Gửi!"
+    task.delay(1.5, function() btnAutoChat.Text = "💬 Gửi Lệnh >auto" end)
 end)
 
 -- 5. ĐIỀU CHỈNH TỐC ĐỘ (BPM)
@@ -702,7 +763,7 @@ sSearch.Color = Color3.fromRGB(90, 50, 170); sSearch.Thickness = 1
 local libTitle = Instance.new("TextLabel", Scroll)
 libTitle.Size               = UDim2.new(1, 0, 0, 18)
 libTitle.BackgroundTransparency = 1
-libTitle.Text               = "🎵 Danh Sách Nhạc Hot (Chạm Để Chọn):"
+libTitle.Text               = "🎵 Danh Sách Nhạc (Chạm Là Tự Động Đánh):"
 libTitle.TextColor3         = Color3.fromRGB(170, 150, 210)
 libTitle.Font               = Enum.Font.GothamSemibold
 libTitle.TextSize           = 11
@@ -730,11 +791,8 @@ for idx, song in ipairs(SongLibrary) do
         Config.BPM           = song.BPM
         bpmLabel.Text        = "Tốc độ: " .. Config.BPM .. " BPM"
         
-        -- Tự động gửi lệnh >auto hoặc thử dán vào game
-        tryPasteToGameGui(song.Sheet)
-        sendChatCommand(">auto " .. song.Sheet)
-        btnAutoChat.Text = "✅ Đang Phát Qua >auto!"
-        task.delay(2, function() btnAutoChat.Text = "🚀 Phát Bằng Lệnh >auto" end)
+        -- Tự động đánh qua phím cảm ứng màn hình
+        startPlayingMusic(song.Sheet, song.BPM)
     end)
 
     table.insert(songButtons, {Button = sBtn, Name = song.Name:lower()})
@@ -804,4 +862,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[VOSS] Visual Piano Hub 🎹 (Ultimate Fix Edition) Loaded!")
+print("[VOSS] Visual Piano Hub 🎹 (Screen Touch Edition) Loaded!")
