@@ -30,6 +30,28 @@ local Cam               = workspace.CurrentCamera
 local LOBBY_PLACE_ID    = 120217704230083
 local isLobbyPlace      = (game.PlaceId == LOBBY_PLACE_ID)
 
+-- Danh mục các thế giới & PlaceId chuẩn trong game
+local WORLD_PLACES = {
+    ["1"]     = { id = 121902496311296, name = "DH: Thế Giới 1 (World 1)" },
+    ["2"]     = { id = 123911129955120, name = "DH: Thế Giới 2 (World 2)" },
+    ["3"]     = { id = 116991059923076, name = "DH: Thế Giới 3 (World 3)" },
+    ["4"]     = { id = 113880247399913, name = "DH: Thế Giới 4 (World 4)" },
+    ["5"]     = { id = 121731448247552, name = "DH: Thế Giới 5 (World 5)" },
+    ["tower"] = { id = nil,             name = "Tháp Thử Thách (Tower)" },
+    ["abyss"] = { id = nil,             name = "Vực Sâu (Abyss)" },
+}
+
+-- Từ khóa nhận diện cổng chuẩn xác cho từng thế giới
+local WORLD_KEYWORDS = {
+    ["1"]     = {"world 1", "thế giới 1", "chapter 1", "chương 1", "w1", "world1", "stage 1", "grassland"},
+    ["2"]     = {"world 2", "thế giới 2", "chapter 2", "chương 2", "w2", "world2", "stage 2", "desert"},
+    ["3"]     = {"world 3", "thế giới 3", "chapter 3", "chương 3", "w3", "world3", "stage 3", "snow", "ice"},
+    ["4"]     = {"world 4", "thế giới 4", "chapter 4", "chương 4", "w4", "world4", "stage 4", "volcano", "lava"},
+    ["5"]     = {"world 5", "thế giới 5", "chapter 5", "chương 5", "w5", "world5", "stage 5"},
+    ["tower"] = {"tower", "tháp", "trial"},
+    ["abyss"] = {"abyss", "vực sâu", "vực"},
+}
+
 -- Trạng thái toàn cục
 local State = {
     autoafk       = false, -- MASTER TOGGLE: TREO MÁY TOÀN DIỆN VÒNG LẶP
@@ -46,6 +68,7 @@ local State = {
     nofall        = true,
     esp_mobs      = false,
     esp_chests    = false,
+    targetWorld   = "1",    -- "1", "2", "3", "4", "5", "tower", "abyss"
     targetLevel   = "AUTO", -- "AUTO", "1", "2", "3", "4", "5"
     statusText    = isLobbyPlace and "📍 Đang ở Sảnh Chờ (Lobby)" or "⚔️ Đang trong ải hầm ngục",
 }
@@ -78,6 +101,7 @@ local function saveSettings()
                 autoreplay = State.autoreplay,
                 noclip     = State.noclip,
                 speed      = State.speed,
+                targetWorld= State.targetWorld,
                 targetLevel= State.targetLevel,
             }
             writefile(SAVE_FILE, HttpService:JSONEncode(data))
@@ -646,84 +670,137 @@ local function clickReplayButton()
 end
 
 -- ================================================
--- TỰ ĐỘNG Ở SẢNH (LOBBY AUTOMATION)
+-- TỰ ĐỘNG Ở SẢNH (LOBBY AUTOMATION - CHỐNG VÀO NHẦM MAP)
 -- ================================================
 local function findLobbyEntrance()
-    -- 1. Tìm bất kỳ ProximityPrompt nào ở sảnh (World, Chapter, Dungeon, Play, Enter)
+    local targetW = tostring(State.targetWorld or "1"):lower()
+    local targetKeywords = WORLD_KEYWORDS[targetW] or WORLD_KEYWORDS["1"]
+
+    -- Danh sách các từ khóa của các thế giới / chế độ KHÁC (cấm tuyệt đối không được vào)
+    local conflictingKeywords = {}
+    for wKey, kList in pairs(WORLD_KEYWORDS) do
+        if wKey ~= targetW then
+            for _, kw in ipairs(kList) do
+                table.insert(conflictingKeywords, kw)
+            end
+        end
+    end
+    -- Cấm cả các chế độ đặc biệt khác nếu không phải mục tiêu
+    if targetW ~= "tower" then
+        table.insert(conflictingKeywords, "tower")
+        table.insert(conflictingKeywords, "tháp")
+    end
+    if targetW ~= "abyss" then
+        table.insert(conflictingKeywords, "abyss")
+        table.insert(conflictingKeywords, "vực sâu")
+    end
+    table.insert(conflictingKeywords, "pvp")
+    table.insert(conflictingKeywords, "arena")
+    table.insert(conflictingKeywords, "event")
+    table.insert(conflictingKeywords, "raid")
+
+    local candidates = {}
+
+    local function scoreCandidate(text, part, prompt)
+        text = text:lower()
+
+        -- 1. Loại trừ ngay nếu có trong Blacklist NPC sảnh (shop, gacha, blacksmith...)
+        for _, b in ipairs(LOBBY_BLACKLIST) do
+            if text:find(b) then return -100000 end
+        end
+
+        -- 2. Loại trừ ngay nếu chứa từ khóa của Thế Giới KHÁC (chống vào nhầm map 100%!)
+        for _, ckw in ipairs(conflictingKeywords) do
+            if text:find(ckw) then
+                return -100000
+            end
+        end
+
+        local score = 0
+
+        -- 3. Khớp chính xác thế giới mong muốn (Điểm thưởng cực cao)
+        for _, tkw in ipairs(targetKeywords) do
+            if text:find(tkw) then
+                score = score + 500
+            end
+        end
+
+        -- 4. Khớp từ khóa cổng / hầm ngục chung
+        if text:find("dungeonportal") or text:find("dungeongate") then score = score + 120
+        elseif text:find("portalpad") or text:find("teleportpad") then score = score + 110
+        elseif text:find("portal") then score = score + 80
+        elseif text:find("dungeon") or text:find("hầm ngục") then score = score + 70
+        elseif text:find("gate") or text:find("cổng") then score = score + 50
+        elseif text:find("play") or text:find("enter") or text:find("vào") then score = score + 40
+        end
+
+        return score
+    end
+
+    -- 1. Quét mọi ProximityPrompt ở sảnh
     for _, prompt in ipairs(workspace:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
-            local pText = (prompt.ActionText .. " " .. prompt.ObjectText):lower()
-            local isExcluded = false
-            for _, b in ipairs(LOBBY_BLACKLIST) do
-                if pText:find(b) then isExcluded = true; break end
-            end
-            if not isExcluded then
+            local pName = prompt.Parent and prompt.Parent.Name or ""
+            local ppName = prompt.Parent and prompt.Parent.Parent and prompt.Parent.Parent.Name or ""
+            local combined = prompt.ActionText .. " " .. prompt.ObjectText .. " " .. pName .. " " .. ppName
+            local sc = scoreCandidate(combined, prompt.Parent, prompt)
+            if sc > 0 then
                 local part = prompt.Parent:IsA("BasePart") and prompt.Parent or prompt.Parent:FindFirstChildWhichIsA("BasePart")
-                if part then return part, prompt end
+                if part then
+                    table.insert(candidates, { part = part, prompt = prompt, score = sc })
+                end
             end
         end
     end
 
-    -- 2. Tìm BasePart hoặc Pad cổng
-    local bestPart = nil
-    local bestScore = 0
-
+    -- 2. Quét mọi BasePart ở sảnh
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
-            local n = obj.Name:lower()
-            local pName = obj.Parent and obj.Parent.Name:lower() or ""
-            local combined = n .. " " .. pName
-
-            local score = 0
-            if combined:find("world 1") or combined:find("thế giới 1") or combined:find("chapter 1") then score = 120
-            elseif combined:find("dungeonportal") or combined:find("dungeongate") or combined:find("dungeonentrance") then score = 100
-            elseif combined:find("portalpad") or combined:find("teleportpad") then score = 95
-            elseif combined:find("world") or combined:find("chapter") then score = 85
-            elseif combined:find("portal") then score = 80
-            elseif combined:find("dungeon") then score = 70
-            elseif combined:find("gate") then score = 50
-            end
-
-            local isBlack = false
-            for _, b in ipairs(LOBBY_BLACKLIST) do
-                if combined:find(b) then isBlack = true; break end
-            end
-
-            if not isBlack and score > bestScore and not combined:find("exit") and not combined:find("return") then
-                bestScore = score
-                bestPart = obj
+            local n = obj.Name
+            local pName = obj.Parent and obj.Parent.Name or ""
+            local ppName = obj.Parent and obj.Parent.Parent and obj.Parent.Parent.Name or ""
+            local combined = n .. " " .. pName .. " " .. ppName
+            local sc = scoreCandidate(combined, obj, nil)
+            if sc > 0 then
+                table.insert(candidates, { part = obj, prompt = nil, score = sc })
             end
         end
     end
 
-    return bestPart, nil
+    -- Sắp xếp ứng viên có điểm cao nhất lên đầu
+    table.sort(candidates, function(a, b)
+        return a.score > b.score
+    end)
+
+    if #candidates > 0 then
+        return candidates[1].part, candidates[1].prompt
+    end
+
+    return nil, nil
 end
 
 local function handleLobbyMenu()
     local pGui = LP:FindFirstChild("PlayerGui")
     if not pGui then return false end
 
-    -- 1. Bấm chọn Cấp Độ hoặc Chapter trên tất cả GUI
-    local targetLvlStr = tostring(State.targetLevel)
+    local targetW = tostring(State.targetWorld or "1"):lower()
+    local targetKeywords = WORLD_KEYWORDS[targetW] or WORLD_KEYWORDS["1"]
+    local targetLvlStr = tostring(State.targetLevel or "AUTO"):lower()
+
+    -- BƯỚC 1: Chọn Thế Giới (World / Chapter Tab) chuẩn xác
     for _, gui in ipairs(pGui:GetChildren()) do
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
                     local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
-                    if State.targetLevel ~= "AUTO" then
-                        if bText:find("level " .. targetLvlStr) or bText:find("lv " .. targetLvlStr) or bText:find("cấp " .. targetLvlStr) or btn.Name == targetLvlStr then
+                    for _, kw in ipairs(targetKeywords) do
+                        if bText:find(kw) then
                             pcall(function()
                                 firesignal(btn.MouseButton1Click)
                                 firesignal(btn.Activated)
                             end)
-                            task.wait(0.2)
-                        end
-                    else
-                        if bText:find("chapter 1") or bText:find("world 1") or bText:find("stage 1") or bText:find("thế giới 1") or bText:find("dễ") or bText:find("normal") then
-                            pcall(function()
-                                firesignal(btn.MouseButton1Click)
-                                firesignal(btn.Activated)
-                            end)
+                            task.wait(0.25)
+                            break
                         end
                     end
                 end
@@ -733,21 +810,46 @@ local function handleLobbyMenu()
 
     task.wait(0.3)
 
-    -- 2. Bấm nút Bắt đầu / Solo / Start / Create / Play
+    -- BƯỚC 2: Chọn Cấp Độ / Ải (Level / Stage)
+    if targetLvlStr ~= "auto" then
+        for _, gui in ipairs(pGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
+                for _, btn in ipairs(gui:GetDescendants()) do
+                    if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
+                        local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
+                        if bText:find("level " .. targetLvlStr) or bText:find("lv " .. targetLvlStr) or bText:find("cấp " .. targetLvlStr) or bText:find("stage " .. targetLvlStr) or bText:find("ải " .. targetLvlStr) or btn.Name:lower() == targetLvlStr then
+                            pcall(function()
+                                firesignal(btn.MouseButton1Click)
+                                firesignal(btn.Activated)
+                            end)
+                            task.wait(0.25)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    task.wait(0.3)
+
+    -- BƯỚC 3: Bấm nút Bắt đầu / Solo / Start / Create / Play
     local started = false
     for _, gui in ipairs(pGui:GetChildren()) do
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
                     local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
-                    if bText:find("start") or bText:find("solo") or bText:find("create") or bText:find("play") or bText:find("bắt đầu") or bText:find("enter") or bText:find("ready") then
-                        pcall(function()
-                            firesignal(btn.MouseButton1Click)
-                            firesignal(btn.Activated)
-                        end)
-                        started = true
-                        task.wait(0.3)
-                        break
+                    if not bText:find("close") and not bText:find("cancel") and not bText:find("hủy") and not bText:find("đóng") and not bText:find("back") and not bText:find("shop") then
+                        if bText:find("solo") or bText:find("start") or bText:find("create") or bText:find("play") or bText:find("bắt đầu") or bText:find("chơi") or bText:find("tạo phòng") or bText:find("enter") or bText:find("ready") then
+                            pcall(function()
+                                firesignal(btn.MouseButton1Click)
+                                firesignal(btn.Activated)
+                            end)
+                            started = true
+                            task.wait(0.3)
+                            break
+                        end
                     end
                 end
             end
@@ -764,11 +866,12 @@ local function runLobbyEnter()
     if isLobbyBusy then return end
     isLobbyBusy = true
 
-    State.statusText = "📍 Ở Sảnh Chờ -> Đang tìm cổng vào Thế Giới 1..."
+    local targetInfo = WORLD_PLACES[State.targetWorld or "1"] or WORLD_PLACES["1"]
+    State.statusText = "📍 Ở Sảnh -> Đang tìm cổng " .. targetInfo.name .. "..."
 
     local part, prompt = findLobbyEntrance()
     if part and HRP then
-        State.statusText = "Đang lướt tới cổng hầm ngục..."
+        State.statusText = "Đang lướt tới cổng " .. targetInfo.name .. "..."
         glideTo(part.Position, 3.0, 6.0)
 
         if HRP then
@@ -788,6 +891,14 @@ local function runLobbyEnter()
         end
 
         task.wait(0.6)
+    else
+        -- Dự phòng: Nếu không thấy cổng thì thử Teleport trực tiếp qua PlaceId
+        if targetInfo and targetInfo.id then
+            State.statusText = "🚀 Đang dịch chuyển trực tiếp sang " .. targetInfo.name .. "..."
+            pcall(function()
+                game:GetService("TeleportService"):Teleport(targetInfo.id, LP)
+            end)
+        end
     end
 
     handleLobbyMenu()
@@ -1176,11 +1287,29 @@ Title.Font               = Enum.Font.GothamBold
 Title.TextSize           = 14
 Title.TextXAlignment     = Enum.TextXAlignment.Left
 
+local function getCurrentPlaceName()
+    if isLobbyPlace then
+        return "📍 Map: Sảnh Chờ (Lobby)"
+    elseif game.PlaceId == 121902496311296 then
+        return "⚔️ Map: DH: Thế Giới 1 (World 1)"
+    elseif game.PlaceId == 123911129955120 then
+        return "⚔️ Map: DH: Thế Giới 2 (World 2)"
+    elseif game.PlaceId == 116991059923076 then
+        return "⚔️ Map: DH: Thế Giới 3 (World 3)"
+    elseif game.PlaceId == 113880247399913 then
+        return "⚔️ Map: DH: Thế Giới 4 (World 4)"
+    elseif game.PlaceId == 121731448247552 then
+        return "⚔️ Map: DH: Thế Giới 5 (World 5)"
+    else
+        return "⚔️ Map: Ải Hầm Ngục (" .. tostring(game.PlaceId) .. ")"
+    end
+end
+
 local SubTitle = Instance.new("TextLabel", Header)
 SubTitle.Size               = UDim2.new(1, -50, 0, 16)
 SubTitle.Position           = UDim2.new(0, 16, 0, 28)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text               = isLobbyPlace and "📍 Map: Sảnh Chờ (Lobby)" or "⚔️ Map: Ải Hầm Ngục (World 1..5)"
+SubTitle.Text               = getCurrentPlaceName()
 SubTitle.TextColor3         = isLobbyPlace and Color3.fromRGB(130, 200, 255) or Color3.fromRGB(255, 170, 100)
 SubTitle.Font               = Enum.Font.Gotham
 SubTitle.TextSize           = 10
@@ -1232,7 +1361,7 @@ Scroll.BackgroundTransparency = 1
 Scroll.BorderSizePixel  = 0
 Scroll.ScrollBarThickness = 4
 Scroll.ScrollBarImageColor3 = Color3.fromRGB(120, 70, 220)
-Scroll.CanvasSize       = UDim2.new(0, 0, 0, 870)
+Scroll.CanvasSize       = UDim2.new(0, 0, 0, 1020)
 
 local UIList = Instance.new("UIListLayout", Scroll)
 UIList.Padding = UDim.new(0, 8)
@@ -1403,6 +1532,70 @@ local function createToggle(title, desc, defaultState, callback, order)
     return f
 end
 
+local function createWorldSelector(order)
+    local f = Instance.new("Frame", Scroll)
+    f.Size             = UDim2.new(1, -6, 0, 68)
+    f.BackgroundColor3 = Color3.fromRGB(22, 19, 36)
+    f.LayoutOrder      = order
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 10)
+
+    local stroke = Instance.new("UIStroke", f)
+    stroke.Color = Color3.fromRGB(120, 60, 210); stroke.Thickness = 1.2
+
+    local tLbl = Instance.new("TextLabel", f)
+    tLbl.Size               = UDim2.new(1, -16, 0, 20)
+    tLbl.Position           = UDim2.new(0, 12, 0, 5)
+    tLbl.BackgroundTransparency = 1
+    tLbl.Text               = "🗺️ Chọn Thế Giới (Bản Đồ Vào Cày):"
+    tLbl.TextColor3         = Color3.fromRGB(230, 195, 255)
+    tLbl.Font               = Enum.Font.GothamBold
+    tLbl.TextSize           = 12
+    tLbl.TextXAlignment     = Enum.TextXAlignment.Left
+
+    local btnContainer = Instance.new("ScrollingFrame", f)
+    btnContainer.Size       = UDim2.new(1, -20, 0, 32)
+    btnContainer.Position   = UDim2.new(0, 10, 0, 28)
+    btnContainer.BackgroundTransparency = 1
+    btnContainer.ScrollBarThickness = 0
+    btnContainer.CanvasSize = UDim2.new(0, 680, 0, 0)
+
+    local bList = Instance.new("UIListLayout", btnContainer)
+    bList.FillDirection = Enum.FillDirection.Horizontal
+    bList.Padding = UDim.new(0, 6)
+
+    local worldOptions = {
+        { key = "1",     label = "Thế Giới 1 ⭐" },
+        { key = "2",     label = "Thế Giới 2" },
+        { key = "3",     label = "Thế Giới 3" },
+        { key = "4",     label = "Thế Giới 4" },
+        { key = "5",     label = "Thế Giới 5" },
+        { key = "tower", label = "Tháp Thử Thách" },
+        { key = "abyss", label = "Vực Sâu" },
+    }
+    local worldBtns = {}
+
+    for _, opt in ipairs(worldOptions) do
+        local b = Instance.new("TextButton", btnContainer)
+        b.Size = UDim2.new(0, 92, 0, 28)
+        b.BackgroundColor3 = (State.targetWorld == opt.key) and Color3.fromRGB(140, 60, 255) or Color3.fromRGB(38, 32, 58)
+        b.Text = opt.label
+        b.TextColor3 = Color3.fromRGB(255, 255, 255)
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 10
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+
+        b.MouseButton1Click:Connect(function()
+            State.targetWorld = opt.key
+            for _, ob in pairs(worldBtns) do ob.BackgroundColor3 = Color3.fromRGB(38, 32, 58) end
+            b.BackgroundColor3 = Color3.fromRGB(140, 60, 255)
+            State.statusText = "Đã chọn: " .. opt.label
+            saveSettings()
+        end)
+        table.insert(worldBtns, b)
+    end
+    return f
+end
+
 local function createLevelSelector(order)
     local f = Instance.new("Frame", Scroll)
     f.Size             = UDim2.new(1, -6, 0, 64)
@@ -1466,24 +1659,38 @@ createCategory("🚀 CHẾ ĐỘ TREO MÁY TOÀN DIỆN (AFK FOREVER)", 1)
 createMasterToggle("⚡ AUTO TREO MÁY TOÀN DIỆN", "Tự vào map sảnh -> Tự cày quái -> Tự qua ải -> Tự Replay lặp vô tận", State.autoafk, function(val)
     State.autoafk = val
     if val then
-        State.statusText = isLobbyPlace and "Bắt đầu chu trình vào hầm ngục..." or "Bắt đầu tự động cày quái ải..."
+        local tInfo = WORLD_PLACES[State.targetWorld or "1"] or WORLD_PLACES["1"]
+        State.statusText = isLobbyPlace and ("Bắt đầu chu trình vào " .. tInfo.name .. "...") or "Bắt đầu tự động cày quái ải..."
     else
         State.statusText = "Đã tạm dừng treo máy."
     end
 end, 2)
 
-createLevelSelector(3)
+createWorldSelector(3)
+createLevelSelector(4)
 
 -- NÚT THAO TÁC NHANH SẢNH & ẢI
 createCategory("⚡ THAO TÁC TỨC THÌ (INSTANT ACTIONS)", 5)
 
-createActionButton("Dịch Chuyển Vào Cổng Sảnh", "Lướt ngay tới cổng và mở bảng hầm ngục", "VÀO CỔNG", function()
-    runLobbyEnter()
+createActionButton("🚀 Vào Thẳng Thế Giới 1", "Dịch chuyển trực tiếp vào ải Thế Giới 1 (Bỏ qua đi cổng)", "VÀO THẲNG", function()
+    local targetInfo = WORLD_PLACES[State.targetWorld or "1"] or WORLD_PLACES["1"]
+    if targetInfo and targetInfo.id then
+        State.statusText = "🚀 Đang dịch chuyển trực tiếp sang " .. targetInfo.name .. "..."
+        pcall(function()
+            game:GetService("TeleportService"):Teleport(targetInfo.id, LP)
+        end)
+    else
+        runLobbyEnter()
+    end
 end, 6)
+
+createActionButton("Dịch Chuyển Vào Cổng Sảnh", "Lướt tới cổng chuẩn xác và mở bảng hầm ngục", "VÀO CỔNG", function()
+    runLobbyEnter()
+end, 7)
 
 createActionButton("Lướt Qua Cửa Phòng Kế", "Lướt thẳng qua cửa phòng tiếp theo tức thì", "QUA CỬA", function()
     advanceNextRoom()
-end, 7)
+end, 8)
 
 -- CÀY CẤP & CHIẾN ĐẤU CHI TIẾT
 createCategory("⚔️ TÙY CHỌN CHIẾN ĐẤU & QUA ẢI", 10)
