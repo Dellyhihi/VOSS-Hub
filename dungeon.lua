@@ -291,11 +291,10 @@ end
 -- ================================================
 local function glideTo(targetPos, stopDist, maxSeconds)
     if not HRP or not Hum or Hum.Health <= 0 then return false end
-    stopDist   = stopDist or 3.0
-    maxSeconds = maxSeconds or 5.0
+    stopDist   = stopDist or 2.5
+    maxSeconds = maxSeconds or 3.5
 
     local startTime = tick()
-    Hum.PlatformStand = false
 
     while (tick() - startTime) < maxSeconds do
         if not HRP or not Hum or Hum.Health <= 0 then break end
@@ -305,17 +304,23 @@ local function glideTo(targetPos, stopDist, maxSeconds)
         local dist   = diff.Magnitude
 
         if dist <= stopDist then
+            HRP.AssemblyLinearVelocity = Vector3.zero
             return true
         end
 
-        local stepSpeed = math.min(CFG.glideSpeed, dist * 6)
+        local stepSpeed = math.min(CFG.glideSpeed, math.max(25, dist * 6))
         local dir = diff.Unit
-        local nextPos = curPos + (dir * (stepSpeed * 0.05))
+        local nextPos = curPos + (dir * (stepSpeed * 0.04))
 
         HRP.AssemblyLinearVelocity = Vector3.zero
-        HRP.CFrame = CFrame.new(nextPos, Vector3.new(targetPos.X, nextPos.Y, targetPos.Z))
+        local horizontalDiff = Vector3.new(targetPos.X - nextPos.X, 0, targetPos.Z - nextPos.Z)
+        if horizontalDiff.Magnitude > 0.1 then
+            HRP.CFrame = CFrame.new(nextPos, Vector3.new(targetPos.X, nextPos.Y, targetPos.Z))
+        else
+            HRP.CFrame = CFrame.new(nextPos)
+        end
 
-        task.wait(0.04)
+        task.wait(0.03)
     end
 
     if HRP then
@@ -332,6 +337,10 @@ local LOBBY_BLACKLIST = {
     "quest", "trait", "summon", "gacha", "guide", "blacksmith", "display"
 }
 
+local ENEMY_CONTAINER_NAMES = {
+    "enemies", "mobs", "monsters", "dungeon", "entities", "living", "live", "npcs", "rooms"
+}
+
 local function getAllRoomEnemies()
     local enemies = {}
     local seen = {}
@@ -339,40 +348,52 @@ local function getAllRoomEnemies()
 
     local myPos = HRP.Position
 
-    -- 1. Quét mọi Humanoid còn sống trong toàn bộ workspace
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Humanoid") and obj.Health > 0 then
-            local model = obj.Parent
-            if model and model:IsA("Model") and not seen[model] and model ~= Char then
-                -- Bỏ qua người chơi thật
-                if not Players:GetPlayerFromCharacter(model) then
-                    seen[model] = true
-                    local nLower = model.Name:lower()
+    local function inspectCandidate(model, humObj)
+        if not model or not model:IsA("Model") or seen[model] then return end
+        if model == Char or model == LP.Character then return end
+        if Players:GetPlayerFromCharacter(model) then return end
 
-                    -- Kiểm tra nếu là NPC sảnh
-                    local isLobbyNPC = false
-                    for _, b in ipairs(LOBBY_BLACKLIST) do
-                        if nLower:find(b) then isLobbyNPC = true; break end
-                    end
+        local nLower = model.Name:lower()
 
-                    if not isLobbyNPC then
-                        local root = model.PrimaryPart 
-                            or model:FindFirstChild("HumanoidRootPart") 
-                            or model:FindFirstChild("Torso") 
-                            or model:FindFirstChild("UpperTorso")
-                            or model:FindFirstChildWhichIsA("BasePart")
+        -- Bỏ qua NPC sảnh
+        for _, b in ipairs(LOBBY_BLACKLIST) do
+            if nLower:find(b) then return end
+        end
 
-                        if root then
-                            local dist = (myPos - root.Position).Magnitude
-                            local isBoss = nLower:find("boss") or (obj.MaxHealth > 2500) or nLower:find("queen") or nLower:find("king")
+        local root = model.PrimaryPart 
+            or model:FindFirstChild("HumanoidRootPart") 
+            or model:FindFirstChild("Torso") 
+            or model:FindFirstChild("UpperTorso")
+            or model:FindFirstChild("Head")
+            or model:FindFirstChild("Root")
+            or model:FindFirstChild("Hitbox")
+            or model:FindFirstChildWhichIsA("BasePart")
 
-                            table.insert(enemies, {
-                                model = model,
-                                root  = root,
-                                hum   = obj,
-                                boss  = isBoss,
-                                dist  = dist
-                            })
+        if root then
+            seen[model] = true
+            local dist = (myPos - root.Position).Magnitude
+            local maxHp = humObj and humObj.MaxHealth or 100
+            local isBoss = nLower:find("boss") or (maxHp > 2500) or nLower:find("queen") or nLower:find("king")
+
+            table.insert(enemies, {
+                model = model,
+                root  = root,
+                hum   = humObj,
+                boss  = isBoss,
+                dist  = dist
+            })
+        end
+    end
+
+    -- 1. Quét nhanh trong các Folder quái chuyên dụng
+    for _, fname in ipairs(ENEMY_CONTAINER_NAMES) do
+        for _, folder in ipairs(workspace:GetChildren()) do
+            if folder.Name:lower() == fname then
+                for _, child in ipairs(folder:GetChildren()) do
+                    if child:IsA("Model") then
+                        local hum = child:FindFirstChildOfClass("Humanoid")
+                        if not hum or hum.Health > 0 or hum.MaxHealth > 0 then
+                            inspectCandidate(child, hum)
                         end
                     end
                 end
@@ -380,22 +401,29 @@ local function getAllRoomEnemies()
         end
     end
 
-    -- 2. Dự phòng: Quét quái dùng Value Object HP
+    -- 2. Quét mọi Humanoid còn sống trong toàn bộ workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Humanoid") then
+            local isAlive = (obj.Health > 0) or (obj.MaxHealth > 0 and obj:GetState() ~= Enum.HumanoidStateType.Dead)
+            if isAlive then
+                local model = obj.Parent
+                if model and model:IsA("Model") then
+                    if model.Parent and model.Parent:IsA("Model") and model.Parent ~= workspace then
+                        model = model.Parent
+                    end
+                    inspectCandidate(model, obj)
+                end
+            end
+        end
+    end
+
+    -- 3. Dự phòng: Quét quái dùng Value Object HP
     if #enemies == 0 then
         for _, obj in ipairs(workspace:GetDescendants()) do
             if (obj:IsA("IntValue") or obj:IsA("NumberValue")) and (obj.Name:lower() == "health" or obj.Name:lower() == "hp") and obj.Value > 0 then
                 local model = obj.Parent
-                if model and model:IsA("Model") and not seen[model] and model ~= Char and not Players:GetPlayerFromCharacter(model) then
-                    seen[model] = true
-                    local root = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                    if root then
-                        table.insert(enemies, {
-                            model = model,
-                            root  = root,
-                            boss  = false,
-                            dist  = (myPos - root.Position).Magnitude
-                        })
-                    end
+                if model and model:IsA("Model") then
+                    inspectCandidate(model, nil)
                 end
             end
         end
@@ -552,7 +580,7 @@ end
 local lastDoorAdvanceTime = 0
 
 local function lootChest()
-    if not State.autochest or not HRP then return end
+    if not State.autochest or not HRP then return false end
 
     local chestPart = nil
     for _, obj in ipairs(workspace:GetDescendants()) do
@@ -571,12 +599,14 @@ local function lootChest()
 
     if chestPart then
         State.statusText = "📦 Đang lướt tới nhặt rương kho báu..."
-        glideTo(chestPart.Position, 2.5, 4.0)
+        glideTo(chestPart.Position, 2.5, 3.0)
 
         local prompt = chestPart:FindFirstChildOfClass("ProximityPrompt") or chestPart.Parent:FindFirstChildOfClass("ProximityPrompt")
         if prompt then pcall(function() fireproximityprompt(prompt) end) end
         task.wait(0.3)
+        return true
     end
+    return false
 end
 
 local function clickNextRoomVote()
@@ -598,11 +628,11 @@ local function clickNextRoomVote()
 end
 
 local function advanceNextRoom()
-    if not State.autodoor or not HRP then return end
+    if not State.autodoor or not HRP then return false end
 
     -- Tránh spam cửa liên tục khi cửa chưa mở
     local now = tick()
-    if (now - lastDoorAdvanceTime) < 3.0 then return end
+    if (now - lastDoorAdvanceTime) < 3.0 then return false end
     lastDoorAdvanceTime = now
 
     local doorPart = nil
@@ -680,13 +710,15 @@ local function advanceNextRoom()
 
         clickNextRoomVote()
         task.wait(1.5)
+        return true
     end
+    return false
 end
 
 local function clickReplayButton()
-    if not State.autoreplay then return end
+    if not State.autoreplay then return false end
     local pGui = LP:FindFirstChild("PlayerGui")
-    if not pGui then return end
+    if not pGui then return false end
 
     for _, gui in ipairs(pGui:GetChildren()) do
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
@@ -699,13 +731,14 @@ local function clickReplayButton()
                             safeClickGuiButton(btn)
                             State.statusText = "🏆 Thắng trận! Đang bấm chơi lại (Replay)..."
                             task.wait(2.5)
-                            return
+                            return true
                         end
                     end
                 end
             end
         end
     end
+    return false
 end
 
 -- ================================================
@@ -989,73 +1022,101 @@ local function runLobbyEnter()
 end
 
 -- ================================================
--- LUỒNG ĐIỀU PHỐI CHÍNH (MASTER AUTO FARM LOOP)
+-- KIỂM TRA ĐANG Ở TRONG ẢI HAY Ở SẢNH CHỜ
+-- ================================================
+local function checkIsInDungeon()
+    if #getAllRoomEnemies() > 0 then return true end
+
+    -- Kiểm tra cửa phòng kế
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local n = obj.Name:lower()
+            if n:find("nextroom") or n:find("next_room") or n:find("dungeondoor") or n:find("roomdoor") then
+                return true
+            end
+        end
+    end
+
+    -- Nếu PlaceId khác PlaceId Sảnh -> Chắc chắn đang trong Ải
+    if game.PlaceId ~= LOBBY_PLACE_ID then
+        return true
+    end
+
+    return false
+end
+
+-- ================================================
+-- LUỒNG ĐIỀU PHỐI THÔNG MINH TOÀN DIỆN (UNIFIED MASTER AUTO FARM)
 -- ================================================
 task.spawn(function()
     while true do
-        task.wait(0.12)
+        task.wait(0.08)
         if not HRP or not Hum or Hum.Health <= 0 then continue end
 
-        -- PHÂN BIỆT RÕ RÀNG: Ở SẢNH CHỜ HAY TRONG ẢI HẦM NGỤC
-        if isLobbyPlace then
-            -- 1. TRƯỜNG HỢP: ĐANG Ở SẢNH CHỜ (LOBBY PLACE)
-            if State.autoafk then
-                runLobbyEnter()
-            end
-        else
-            -- 2. TRƯỜNG HỢP: ĐANG TRONG ẢI (THẾ GIỚI 1, 2, 3...)
-            if State.autoafk or State.autofarm then
-                local enemies = getAllRoomEnemies()
+        -- BƯỚC 1: QUÉT QUÁI TRONG PHÒNG HIỆN TẠI
+        local enemies = {}
+        if State.autoafk or State.autofarm then
+            enemies = getAllRoomEnemies()
+        end
 
-                if #enemies > 0 then
-                    local target = enemies[1]
+        if #enemies > 0 then
+            -- TRƯỜNG HỢP 1: CÓ QUÁI -> TỰ ĐỘNG LƯỚT VÀ FARM QUÁI NGAY LẬP TỨC!
+            local target = enemies[1]
 
-                    if target and target.root then
-                        local mobRoot = target.root
-                        local mobCF   = mobRoot.CFrame
-                        local mobPos  = mobRoot.Position
-                        local myPos   = HRP.Position
+            if target and target.root then
+                local mobRoot = target.root
+                local mobPos  = mobRoot.Position
+                local myPos   = HRP.Position
 
-                        local hpText = (target.hum and target.hum.Health) and ("HP: " .. math.floor(target.hum.Health)) or "Sống"
-                        State.statusText = "⚔️ Diệt: " .. target.model.Name .. " (" .. hpText .. " • Còn " .. #enemies .. " quái)"
+                local hpText = (target.hum and target.hum.Health) and ("HP: " .. math.floor(target.hum.Health)) or "Sống"
+                State.statusText = "⚔️ Đang diệt: " .. target.model.Name .. " (" .. hpText .. " • Còn " .. #enemies .. " quái)"
 
-                        if State.godhover then
-                            -- BẬT BAY TRÊN ĐẦU QUÁI (GOD HOVER - BẤT TỬ 100% KHÔNG MẤT MÁU)
-                            local hoverY = CFG.hoverHeight or 6.0
-                            if Hum and Hum.Health < (Hum.MaxHealth * 0.45) then
-                                hoverY = hoverY + 8.0 -- Bay cao né sát thương tuyệt đối khi máu yếu
-                            end
-                            local targetPos = mobPos + Vector3.new(0, hoverY, 0)
-                            local dist = (myPos - targetPos).Magnitude
+                if State.godhover then
+                    -- BAY TRÊN ĐẦU QUÁI (GOD HOVER) - BẤT TỬ 100%
+                    local hoverY = CFG.hoverHeight or 6.0
+                    if Hum.Health < (Hum.MaxHealth * 0.45) then
+                        hoverY = hoverY + 8.0 -- Tự nâng độ cao né sát thương khi máu thấp
+                    end
+                    local targetPos = mobPos + Vector3.new(0, hoverY, 0)
+                    local dist = (myPos - targetPos).Magnitude
 
-                            if dist > 3.5 then
-                                glideTo(targetPos, 2.5, 2.0)
-                            else
-                                HRP.AssemblyLinearVelocity = Vector3.zero
-                                -- Hướng mặt thẳng xuống đầu quái để chém trúng 100%
-                                HRP.CFrame = CFrame.lookAt(targetPos, mobPos)
-                            end
-                        else
-                            -- Áp sát sau lưng quái ở mặt đất
-                            local behindPos = mobPos - (mobCF.LookVector * 2.5)
-                            behindPos = Vector3.new(behindPos.X, mobPos.Y, behindPos.Z)
-                            local dist = (myPos - behindPos).Magnitude
-                            if dist > 4.5 then
-                                glideTo(behindPos, 3.5, 2.5)
-                            else
-                                HRP.AssemblyLinearVelocity = Vector3.zero
-                                HRP.CFrame = CFrame.lookAt(behindPos, Vector3.new(mobPos.X, behindPos.Y, mobPos.Z))
-                            end
-                        end
-
-                        attackTarget(target.model, mobRoot)
+                    if dist > 3.0 then
+                        glideTo(targetPos, 2.0, 1.8)
+                    else
+                        HRP.AssemblyLinearVelocity = Vector3.zero
+                        HRP.CFrame = CFrame.lookAt(targetPos, mobPos)
                     end
                 else
-                    -- PHÒNG SẠCH QUÁI: Nhặt rương -> Sang cửa phòng kế -> Replay
-                    State.statusText = "✅ Phòng sạch quái! Đang kiểm tra rương và cửa phòng kế..."
-                    if State.autochest then lootChest() end
-                    if State.autodoor  then advanceNextRoom() end
-                    if State.autoreplay then clickReplayButton() end
+                    -- Áp sát sau lưng quái ở mặt đất
+                    local mobCF = mobRoot.CFrame
+                    local behindPos = mobPos - (mobCF.LookVector * 2.5)
+                    behindPos = Vector3.new(behindPos.X, mobPos.Y, behindPos.Z)
+                    local dist = (myPos - behindPos).Magnitude
+                    if dist > 3.5 then
+                        glideTo(behindPos, 2.5, 1.8)
+                    else
+                        HRP.AssemblyLinearVelocity = Vector3.zero
+                        HRP.CFrame = CFrame.lookAt(behindPos, Vector3.new(mobPos.X, behindPos.Y, mobPos.Z))
+                    end
+                end
+
+                attackTarget(target.model, mobRoot)
+            end
+
+        else
+            -- TRƯỜNG HỢP 2: PHÒNG HIỆN TẠI SẠCH QUÁI
+            local inDungeon = checkIsInDungeon()
+
+            if inDungeon or (game.PlaceId ~= LOBBY_PLACE_ID) then
+                -- Đang trong Ải: Replay -> Rương -> Cửa phòng tiếp theo
+                State.statusText = "✅ Phòng sạch quái! Đang kiểm tra rương và cửa kế..."
+                if State.autoreplay then clickReplayButton() end
+                if State.autochest  then lootChest() end
+                if State.autodoor   then advanceNextRoom() end
+            else
+                -- Đang ở Sảnh Chờ (Lobby): Tự động đi cổng vào ải nếu bật autoafk
+                if State.autoafk then
+                    runLobbyEnter()
                 end
             end
         end
