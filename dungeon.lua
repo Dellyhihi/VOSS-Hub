@@ -56,16 +56,17 @@ local WORLD_KEYWORDS = {
 local State = {
     autoafk       = false, -- MASTER TOGGLE: TREO MÁY TOÀN DIỆN VÒNG LẶP
     autofarm      = true,  -- Tự đánh quái trong ải
+    godhover      = true,  -- BẬT BAY TRÊN ĐẦU QUÁI (BẤT TỬ 100% KHÔNG MẤT MÁU)
     autoboss      = false, -- Ưu tiên diệt Boss trước
     autoskill     = true,  -- Tự xả chiêu 1, 2, 3, 4
     autodash      = true,  -- Tự lướt Dash (Q) né chiêu
     autodoor      = true,  -- Tự đi qua cửa phòng tiếp theo
     autochest     = true,  -- Tự nhặt rương kho báu
     autoreplay    = true,  -- Tự bấm Replay khi thắng trận
-    noclip        = true,  -- Đi xuyên tường khi farm chống kẹt
+    noclip        = false, -- Tắt noclip rơi sàn chết (Bảo vệ mặt đất 100%)
     speed         = false,
     fly           = false,
-    nofall        = true,
+    nofall        = true,  -- BẬT CỨU HỘ RƠI VỰC (ANTI-VOID RESCUE)
     esp_mobs      = false,
     esp_chests    = false,
     targetWorld   = "1",    -- "1", "2", "3", "4", "5", "tower", "abyss"
@@ -77,6 +78,7 @@ local CFG = {
     walkspeed   = 55,
     flyspeed    = 50,
     glideSpeed  = 50,
+    hoverHeight = 6.0,   -- Bay 6.0 studs trên đầu quái (ngoài tầm đánh của quái)
     m1Delay     = 0.12,
     skillDelay  = 1.3,
     dashDelay   = 4.0,
@@ -93,6 +95,7 @@ local function saveSettings()
             local data = {
                 autoafk    = State.autoafk,
                 autofarm   = State.autofarm,
+                godhover   = State.godhover,
                 autoboss   = State.autoboss,
                 autoskill  = State.autoskill,
                 autodash   = State.autodash,
@@ -101,6 +104,7 @@ local function saveSettings()
                 autoreplay = State.autoreplay,
                 noclip     = State.noclip,
                 speed      = State.speed,
+                nofall     = State.nofall,
                 targetWorld= State.targetWorld,
                 targetLevel= State.targetLevel,
             }
@@ -123,6 +127,10 @@ local function loadSettings()
             end
         end)
     end
+    -- Bảo vệ an toàn sàn nhà: noclip luôn tắt mặc định, godhover và nofall luôn bật
+    State.noclip   = false
+    State.godhover = true
+    State.nofall   = true
 end
 loadSettings()
 
@@ -201,26 +209,47 @@ LP.CharacterAdded:Connect(function(newChar)
     setupCharacter(newChar)
 end)
 
--- Noclip tự động khi Auto Farm để không bao giờ bị kẹt
+-- 1. Noclip an toàn (Chỉ xuyên tường ngang, KHÔNG BAO GIỜ làm lọt sàn)
 RunService.Stepped:Connect(function()
-    if (State.autoafk or State.autofarm) and State.noclip and Char then
+    if State.noclip and Char then
         for _, part in ipairs(Char:GetDescendants()) do
             if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
+                local pName = part.Name:lower()
+                -- Giữ va chạm cho chân và RootPart để không bao giờ bị rơi xuyên sàn
+                if not pName:find("leg") and not pName:find("foot") and pName ~= "humanoidrootpart" then
+                    part.CanCollide = false
+                end
             end
         end
     end
 end)
 
--- Duy trì tốc độ và chống rơi
+-- 2. Duy trì tốc độ, Chống Sát Thương Rơi và Cứu Hộ Rơi Vực (Anti-Void Rescue 100%)
+local lastSafePos = nil
 RunService.Heartbeat:Connect(function()
     if HRP and Hum and Hum.Health > 0 then
         if State.speed and Hum.WalkSpeed ~= CFG.walkspeed then
             pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
         end
-        if State.nofall and HRP.AssemblyLinearVelocity.Y < -24 then
-            local v = HRP.AssemblyLinearVelocity
-            HRP.AssemblyLinearVelocity = Vector3.new(v.X, -14, v.Z)
+
+        -- Ghi nhớ vị trí an toàn trên mặt đất rắn
+        if Hum.FloorMaterial ~= Enum.Material.Air and HRP.Position.Y > -20 then
+            lastSafePos = HRP.Position
+        end
+
+        -- Chống rơi thảm khốc / rơi vực
+        if State.nofall then
+            -- Triệt tiêu gia tốc rơi tự do để không bao giờ chết vì rơi từ cao
+            if HRP.AssemblyLinearVelocity.Y < -15 then
+                local v = HRP.AssemblyLinearVelocity
+                HRP.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
+            end
+
+            -- Cứu hộ rơi vực: Kéo ngay về vị trí an toàn nếu bị lọt sàn hoặc rơi sâu
+            if lastSafePos and (HRP.Position.Y < (lastSafePos.Y - 18) or HRP.Position.Y < -30) then
+                HRP.AssemblyLinearVelocity = Vector3.zero
+                HRP.CFrame = CFrame.new(lastSafePos + Vector3.new(0, 4.0, 0))
+            end
         end
     end
 end)
@@ -236,6 +265,25 @@ local function isOurGui(obj)
     local n = obj.Name:lower()
     if n:find("voss") or n:find("floatbtn") or n:find("mainframe") then return true end
     return false
+end
+
+-- ================================================
+-- HÀM BẤM NÚT GUI AN TOÀN ĐA NỀN TẢNG (MOBILE & PC)
+-- ================================================
+local function safeClickGuiButton(btn)
+    if not btn or not btn:IsA("GuiButton") then return false end
+    pcall(function() firesignal(btn.MouseButton1Click) end)
+    pcall(function() firesignal(btn.Activated) end)
+    pcall(function()
+        local pos = btn.AbsolutePosition
+        local sz  = btn.AbsoluteSize
+        local cx  = pos.X + (sz.X / 2)
+        local cy  = pos.Y + (sz.Y / 2)
+        VirtualInputMgr:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+        task.wait(0.02)
+        VirtualInputMgr:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+    end)
+    return true
 end
 
 -- ================================================
@@ -415,10 +463,7 @@ local function triggerMobileSkillButtons()
                 if (btn:IsA("ImageButton") or btn:IsA("TextButton")) and btn.Visible and not isOurGui(btn) then
                     local bName = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
                     if bName:find("skill") or bName:find("ability") or bName:find("spell") or bName == "1" or bName == "2" or bName == "3" or bName == "4" then
-                        pcall(function()
-                            firesignal(btn.MouseButton1Click)
-                            firesignal(btn.Activated)
-                        end)
+                        safeClickGuiButton(btn)
                     end
                 end
             end
@@ -544,10 +589,7 @@ local function clickNextRoomVote()
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
                     local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
                     if bText:find("vote") or bText:find("yes") or bText:find("ready") or bText:find("proceed") or bText:find("tiếp") or bText:find("đồng ý") or bText:find("next") or bText:find("ok") then
-                        pcall(function()
-                            firesignal(btn.MouseButton1Click)
-                            firesignal(btn.Activated)
-                        end)
+                        safeClickGuiButton(btn)
                     end
                 end
             end
@@ -654,10 +696,7 @@ local function clickReplayButton()
                     if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
                         local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
                         if bText:find("replay") or bText:find("retry") or bText:find("again") or bText:find("chơi lại") or bText:find("continue") then
-                            pcall(function()
-                                firesignal(btn.MouseButton1Click)
-                                firesignal(btn.Activated)
-                            end)
+                            safeClickGuiButton(btn)
                             State.statusText = "🏆 Thắng trận! Đang bấm chơi lại (Replay)..."
                             task.wait(2.5)
                             return
@@ -685,7 +724,6 @@ local function findLobbyEntrance()
             end
         end
     end
-    -- Cấm cả các chế độ đặc biệt khác nếu không phải mục tiêu
     if targetW ~= "tower" then
         table.insert(conflictingKeywords, "tower")
         table.insert(conflictingKeywords, "tháp")
@@ -694,10 +732,6 @@ local function findLobbyEntrance()
         table.insert(conflictingKeywords, "abyss")
         table.insert(conflictingKeywords, "vực sâu")
     end
-    table.insert(conflictingKeywords, "pvp")
-    table.insert(conflictingKeywords, "arena")
-    table.insert(conflictingKeywords, "event")
-    table.insert(conflictingKeywords, "raid")
 
     local candidates = {}
 
@@ -743,6 +777,14 @@ local function findLobbyEntrance()
             local pName = prompt.Parent and prompt.Parent.Name or ""
             local ppName = prompt.Parent and prompt.Parent.Parent and prompt.Parent.Parent.Name or ""
             local combined = prompt.ActionText .. " " .. prompt.ObjectText .. " " .. pName .. " " .. ppName
+            if prompt.Parent then
+                for _, g in ipairs(prompt.Parent:GetDescendants()) do
+                    if g:IsA("TextLabel") or g:IsA("TextButton") then
+                        combined = combined .. " " .. g.Text
+                    end
+                end
+            end
+
             local sc = scoreCandidate(combined, prompt.Parent, prompt)
             if sc > 0 then
                 local part = prompt.Parent:IsA("BasePart") and prompt.Parent or prompt.Parent:FindFirstChildWhichIsA("BasePart")
@@ -760,6 +802,14 @@ local function findLobbyEntrance()
             local pName = obj.Parent and obj.Parent.Name or ""
             local ppName = obj.Parent and obj.Parent.Parent and obj.Parent.Parent.Name or ""
             local combined = n .. " " .. pName .. " " .. ppName
+            if obj.Parent then
+                for _, g in ipairs(obj.Parent:GetDescendants()) do
+                    if g:IsA("TextLabel") or g:IsA("TextButton") then
+                        combined = combined .. " " .. g.Text
+                    end
+                end
+            end
+
             local sc = scoreCandidate(combined, obj, nil)
             if sc > 0 then
                 table.insert(candidates, { part = obj, prompt = nil, score = sc })
@@ -784,8 +834,8 @@ local function handleLobbyMenu()
     if not pGui then return false end
 
     local targetW = tostring(State.targetWorld or "1"):lower()
-    local targetKeywords = WORLD_KEYWORDS[targetW] or WORLD_KEYWORDS["1"]
     local targetLvlStr = tostring(State.targetLevel or "AUTO"):lower()
+    local clickedSomething = false
 
     -- BƯỚC 1: Chọn Thế Giới (World / Chapter Tab) chuẩn xác
     for _, gui in ipairs(pGui:GetChildren()) do
@@ -793,61 +843,85 @@ local function handleLobbyMenu()
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
                     local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
-                    for _, kw in ipairs(targetKeywords) do
-                        if bText:find(kw) then
-                            pcall(function()
-                                firesignal(btn.MouseButton1Click)
-                                firesignal(btn.Activated)
-                            end)
-                            task.wait(0.25)
-                            break
+                    local matchedWorld = false
+                    if targetW == "1" then
+                        if bText:find("world 1") or bText:find("world1") or bText:find("thế giới 1") or bText:find("chapter 1") or bText:find("chương 1") or bText:find("grassland") then
+                            matchedWorld = true
                         end
+                    elseif targetW == "2" then
+                        if bText:find("world 2") or bText:find("world2") or bText:find("thế giới 2") or bText:find("chapter 2") or bText:find("desert") then
+                            matchedWorld = true
+                        end
+                    elseif targetW == "3" then
+                        if bText:find("world 3") or bText:find("world3") or bText:find("thế giới 3") or bText:find("chapter 3") or bText:find("snow") or bText:find("ice") then
+                            matchedWorld = true
+                        end
+                    elseif targetW == "4" then
+                        if bText:find("world 4") or bText:find("world4") or bText:find("thế giới 4") or bText:find("chapter 4") or bText:find("volcano") or bText:find("lava") then
+                            matchedWorld = true
+                        end
+                    elseif targetW == "5" then
+                        if bText:find("world 5") or bText:find("world5") or bText:find("thế giới 5") or bText:find("chapter 5") then
+                            matchedWorld = true
+                        end
+                    end
+
+                    if matchedWorld then
+                        safeClickGuiButton(btn)
+                        clickedSomething = true
+                        task.wait(0.2)
+                        break
                     end
                 end
             end
         end
     end
 
-    task.wait(0.3)
+    task.wait(0.25)
 
     -- BƯỚC 2: Chọn Cấp Độ / Ải (Level / Stage)
-    if targetLvlStr ~= "auto" then
-        for _, gui in ipairs(pGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
-                for _, btn in ipairs(gui:GetDescendants()) do
-                    if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
-                        local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
-                        if bText:find("level " .. targetLvlStr) or bText:find("lv " .. targetLvlStr) or bText:find("cấp " .. targetLvlStr) or bText:find("stage " .. targetLvlStr) or bText:find("ải " .. targetLvlStr) or btn.Name:lower() == targetLvlStr then
-                            pcall(function()
-                                firesignal(btn.MouseButton1Click)
-                                firesignal(btn.Activated)
-                            end)
-                            task.wait(0.25)
-                            break
+    for _, gui in ipairs(pGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
+            for _, btn in ipairs(gui:GetDescendants()) do
+                if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
+                    local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
+                    local matchedLevel = false
+                    if targetLvlStr == "auto" or targetLvlStr == "1" then
+                        if bText:find("level 1") or bText:find("lv 1") or bText:find("cấp 1") or bText:find("stage 1") or bText:find("ải 1") or btn.Name == "1" or (btn:IsA("TextButton") and btn.Text == "1") then
+                            matchedLevel = true
                         end
+                    else
+                        if bText:find("level " .. targetLvlStr) or bText:find("lv " .. targetLvlStr) or bText:find("cấp " .. targetLvlStr) or bText:find("stage " .. targetLvlStr) or btn.Name == targetLvlStr or (btn:IsA("TextButton") and btn.Text == targetLvlStr) then
+                            matchedLevel = true
+                        end
+                    end
+
+                    if matchedLevel then
+                        safeClickGuiButton(btn)
+                        clickedSomething = true
+                        task.wait(0.2)
+                        break
                     end
                 end
             end
         end
     end
 
-    task.wait(0.3)
+    task.wait(0.25)
 
-    -- BƯỚC 3: Bấm nút Bắt đầu / Solo / Start / Create / Play
+    -- BƯỚC 3: Bấm nút Bắt đầu / Solo / Start / Create / Play / Confirm
     local started = false
     for _, gui in ipairs(pGui:GetChildren()) do
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
                     local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
-                    if not bText:find("close") and not bText:find("cancel") and not bText:find("hủy") and not bText:find("đóng") and not bText:find("back") and not bText:find("shop") then
-                        if bText:find("solo") or bText:find("start") or bText:find("create") or bText:find("play") or bText:find("bắt đầu") or bText:find("chơi") or bText:find("tạo phòng") or bText:find("enter") or bText:find("ready") then
-                            pcall(function()
-                                firesignal(btn.MouseButton1Click)
-                                firesignal(btn.Activated)
-                            end)
+                    if not bText:find("close") and not bText:find("cancel") and not bText:find("hủy") and not bText:find("đóng") and not bText:find("back") and not bText:find("shop") and not bText:find("gacha") then
+                        if bText:find("solo") or bText:find("start") or bText:find("create") or bText:find("play") or bText:find("bắt đầu") or bText:find("chơi") or bText:find("tạo phòng") or bText:find("enter") or bText:find("ready") or bText:find("confirm") or bText:find("xác nhận") then
+                            safeClickGuiButton(btn)
                             started = true
-                            task.wait(0.3)
+                            clickedSomething = true
+                            task.wait(0.2)
                             break
                         end
                     end
@@ -857,7 +931,7 @@ local function handleLobbyMenu()
         end
     end
 
-    return started
+    return clickedSomething or started
 end
 
 local isLobbyBusy = false
@@ -872,10 +946,11 @@ local function runLobbyEnter()
     local part, prompt = findLobbyEntrance()
     if part and HRP then
         State.statusText = "Đang lướt tới cổng " .. targetInfo.name .. "..."
-        glideTo(part.Position, 3.0, 6.0)
+        local padPos = part.Position + Vector3.new(0, 3.2, 0)
+        glideTo(padPos, 2.5, 5.0)
 
         if HRP then
-            HRP.CFrame = CFrame.new(part.Position.X, HRP.Position.Y, part.Position.Z)
+            HRP.CFrame = CFrame.new(padPos)
         end
 
         if prompt then
@@ -890,20 +965,26 @@ local function runLobbyEnter()
             end)
         end
 
-        task.wait(0.6)
-    else
-        -- Dự phòng: Nếu không thấy cổng thì thử Teleport trực tiếp qua PlaceId
-        if targetInfo and targetInfo.id then
-            State.statusText = "🚀 Đang dịch chuyển trực tiếp sang " .. targetInfo.name .. "..."
-            pcall(function()
-                game:GetService("TeleportService"):Teleport(targetInfo.id, LP)
-            end)
+        -- Nhấn phím E tương tác cổng hầm ngục
+        pcall(function()
+            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.08)
+            VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        end)
+
+        task.wait(0.5)
+
+        -- Đợi và xử lý giao diện bảng chọn ải
+        for _ = 1, 6 do
+            if handleLobbyMenu() then break end
+            task.wait(0.4)
         end
+    else
+        State.statusText = "📍 Đang kiểm tra giao diện bảng chọn map..."
+        handleLobbyMenu()
     end
 
-    handleLobbyMenu()
-
-    task.wait(3.0)
+    task.wait(2.5)
     isLobbyBusy = false
 end
 
@@ -927,7 +1008,6 @@ task.spawn(function()
                 local enemies = getAllRoomEnemies()
 
                 if #enemies > 0 then
-                    -- CÒN QUÁI TRONG PHÒNG -> LƯỚT ÁP SÁT SAU LƯNG CHÉM DIỆT QUÁI
                     local target = enemies[1]
 
                     if target and target.root then
@@ -939,15 +1019,33 @@ task.spawn(function()
                         local hpText = (target.hum and target.hum.Health) and ("HP: " .. math.floor(target.hum.Health)) or "Sống"
                         State.statusText = "⚔️ Diệt: " .. target.model.Name .. " (" .. hpText .. " • Còn " .. #enemies .. " quái)"
 
-                        local behindPos = mobPos - (mobCF.LookVector * 2.5)
-                        behindPos = Vector3.new(behindPos.X, mobPos.Y, behindPos.Z)
+                        if State.godhover then
+                            -- BẬT BAY TRÊN ĐẦU QUÁI (GOD HOVER - BẤT TỬ 100% KHÔNG MẤT MÁU)
+                            local hoverY = CFG.hoverHeight or 6.0
+                            if Hum and Hum.Health < (Hum.MaxHealth * 0.45) then
+                                hoverY = hoverY + 8.0 -- Bay cao né sát thương tuyệt đối khi máu yếu
+                            end
+                            local targetPos = mobPos + Vector3.new(0, hoverY, 0)
+                            local dist = (myPos - targetPos).Magnitude
 
-                        local dist = (myPos - behindPos).Magnitude
-                        if dist > 4.5 then
-                            glideTo(behindPos, 3.5, 2.5)
+                            if dist > 3.5 then
+                                glideTo(targetPos, 2.5, 2.0)
+                            else
+                                HRP.AssemblyLinearVelocity = Vector3.zero
+                                -- Hướng mặt thẳng xuống đầu quái để chém trúng 100%
+                                HRP.CFrame = CFrame.lookAt(targetPos, mobPos)
+                            end
                         else
-                            HRP.AssemblyLinearVelocity = Vector3.zero
-                            HRP.CFrame = CFrame.lookAt(behindPos, Vector3.new(mobPos.X, behindPos.Y, mobPos.Z))
+                            -- Áp sát sau lưng quái ở mặt đất
+                            local behindPos = mobPos - (mobCF.LookVector * 2.5)
+                            behindPos = Vector3.new(behindPos.X, mobPos.Y, behindPos.Z)
+                            local dist = (myPos - behindPos).Magnitude
+                            if dist > 4.5 then
+                                glideTo(behindPos, 3.5, 2.5)
+                            else
+                                HRP.AssemblyLinearVelocity = Vector3.zero
+                                HRP.CFrame = CFrame.lookAt(behindPos, Vector3.new(mobPos.X, behindPos.Y, mobPos.Z))
+                            end
                         end
 
                         attackTarget(target.model, mobRoot)
@@ -1672,16 +1770,9 @@ createLevelSelector(4)
 -- NÚT THAO TÁC NHANH SẢNH & ẢI
 createCategory("⚡ THAO TÁC TỨC THÌ (INSTANT ACTIONS)", 5)
 
-createActionButton("🚀 Vào Thẳng Thế Giới 1", "Dịch chuyển trực tiếp vào ải Thế Giới 1 (Bỏ qua đi cổng)", "VÀO THẲNG", function()
-    local targetInfo = WORLD_PLACES[State.targetWorld or "1"] or WORLD_PLACES["1"]
-    if targetInfo and targetInfo.id then
-        State.statusText = "🚀 Đang dịch chuyển trực tiếp sang " .. targetInfo.name .. "..."
-        pcall(function()
-            game:GetService("TeleportService"):Teleport(targetInfo.id, LP)
-        end)
-    else
-        runLobbyEnter()
-    end
+createActionButton("🚀 Tự Vào Ải Thế Giới 1", "Lướt tới cổng sảnh, chọn Thế Giới 1 và bấm Bắt đầu vào ải", "VÀO ẢI", function()
+    State.targetWorld = "1"
+    runLobbyEnter()
 end, 6)
 
 createActionButton("Dịch Chuyển Vào Cổng Sảnh", "Lướt tới cổng chuẩn xác và mở bảng hầm ngục", "VÀO CỔNG", function()
@@ -1693,9 +1784,13 @@ createActionButton("Lướt Qua Cửa Phòng Kế", "Lướt thẳng qua cửa p
 end, 8)
 
 -- CÀY CẤP & CHIẾN ĐẤU CHI TIẾT
-createCategory("⚔️ TÙY CHỌN CHIẾN ĐẤU & QUA ẢI", 10)
+createCategory("⚔️ TÙY CHỌN CHIẾN ĐẤU & QUA ẢI", 9)
 
-createToggle("Auto Chém Quái (Noclip Glide)", "Lướt xuyên vật cản đến sát lưng quái chém trúng 100%", State.autofarm, function(val)
+createToggle("Bay Trên Đầu Quái (God Hover)", "Bay 6 studs trên đầu quái chém xuống - Bất tử 100% không mất máu", State.godhover, function(val)
+    State.godhover = val
+end, 10)
+
+createToggle("Auto Chém Quái (Universal)", "Tự động phát hiện và chém sạch quái trong phòng", State.autofarm, function(val)
     State.autofarm = val
 end, 11)
 
