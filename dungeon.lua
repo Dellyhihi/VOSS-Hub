@@ -77,11 +77,11 @@ local State = {
 local CFG = {
     walkspeed   = 55,
     flyspeed    = 50,
-    glideSpeed  = 50,
-    hoverHeight = 6.0,   -- Bay 6.0 studs trên đầu quái (ngoài tầm đánh của quái)
-    m1Delay     = 0.12,
-    skillDelay  = 1.3,
-    dashDelay   = 4.0,
+    glideSpeed  = 55,
+    hoverHeight = 3.5,   -- Bay 3.5 studs trên đầu quái (vừa miễn nhiễm đòn đánh vừa chém trúng quái 100%)
+    m1Delay     = 0.10,
+    skillDelay  = 1.2,
+    dashDelay   = 3.5,
 }
 
 -- ================================================
@@ -131,15 +131,23 @@ local function loadSettings()
     State.noclip   = false
     State.godhover = true
     State.nofall   = true
+    if not isLobbyPlace then
+        State.autofarm = true
+        State.autodoor = true
+        State.autochest = true
+        State.autoreplay = true
+    end
 end
 loadSettings()
 
--- Nếu đang ở trong map ải và đã bật autoafk thì luôn kích hoạt farm
+-- Nếu đang ở trong map ải thì luôn mặc định kích hoạt auto farm
 if not isLobbyPlace then
-    State.autofarm = true
-    if State.autoafk then
-        State.statusText = "⚔️ Đã vào map ải! Đang tự động tìm và diệt quái..."
-    end
+    State.autofarm   = true
+    State.godhover   = true
+    State.autodoor   = true
+    State.autochest  = true
+    State.autoreplay = true
+    State.statusText = "⚔️ Đã vào map ải! Đang tự động tìm và diệt quái..."
 end
 
 -- Tự động kích hoạt lại script khi Roblox Teleport sang Map Mới
@@ -227,28 +235,44 @@ end)
 -- 2. Duy trì tốc độ, Chống Sát Thương Rơi và Cứu Hộ Rơi Vực (Anti-Void Rescue 100%)
 local lastSafePos = nil
 RunService.Heartbeat:Connect(function()
+    if not HRP or not HRP.Parent or not Hum or not Hum.Parent then
+        local c = LP.Character
+        if c then
+            Char = c
+            HRP = c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso") or c.PrimaryPart
+            Hum = c:FindFirstChildOfClass("Humanoid")
+        end
+    end
+
     if HRP and Hum and Hum.Health > 0 then
         if State.speed and Hum.WalkSpeed ~= CFG.walkspeed then
             pcall(function() Hum.WalkSpeed = CFG.walkspeed end)
         end
 
         -- Ghi nhớ vị trí an toàn trên mặt đất rắn
-        if Hum.FloorMaterial ~= Enum.Material.Air and HRP.Position.Y > -20 then
+        if Hum.FloorMaterial ~= Enum.Material.Air then
             lastSafePos = HRP.Position
         end
 
-        -- Chống rơi thảm khốc / rơi vực
+        -- Cứu hộ rơi vực: Chỉ can thiệp khi rơi sát đáy vực (tránh kẹt ở tầng ngầm)
         if State.nofall then
-            -- Triệt tiêu gia tốc rơi tự do để không bao giờ chết vì rơi từ cao
-            if HRP.AssemblyLinearVelocity.Y < -15 then
+            local destroyH = workspace.FallenPartsDestroyHeight or -500
+            local voidLimit = destroyH + 70
+
+            -- Triệt tiêu gia tốc rơi cực mạnh
+            if HRP.AssemblyLinearVelocity.Y < -55 then
                 local v = HRP.AssemblyLinearVelocity
-                HRP.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
+                HRP.AssemblyLinearVelocity = Vector3.new(v.X, -10, v.Z)
             end
 
-            -- Cứu hộ rơi vực: Kéo ngay về vị trí an toàn nếu bị lọt sàn hoặc rơi sâu
-            if lastSafePos and (HRP.Position.Y < (lastSafePos.Y - 18) or HRP.Position.Y < -30) then
+            -- Cứu hộ rơi vực: Kéo về vị trí an toàn khi rớt sát vực chết
+            if HRP.Position.Y < voidLimit or HRP.Position.Y < -350 then
                 HRP.AssemblyLinearVelocity = Vector3.zero
-                HRP.CFrame = CFrame.new(lastSafePos + Vector3.new(0, 4.0, 0))
+                if lastSafePos and lastSafePos.Y > voidLimit then
+                    HRP.CFrame = CFrame.new(lastSafePos + Vector3.new(0, 4.0, 0))
+                else
+                    HRP.CFrame = CFrame.new(0, 50, 0)
+                end
             end
         end
     end
@@ -274,14 +298,18 @@ local function safeClickGuiButton(btn)
     if not btn or not btn:IsA("GuiButton") then return false end
     pcall(function() firesignal(btn.MouseButton1Click) end)
     pcall(function() firesignal(btn.Activated) end)
+    pcall(function() firesignal(btn.MouseButton1Down) end)
+    pcall(function() firesignal(btn.MouseButton1Up) end)
     pcall(function()
         local pos = btn.AbsolutePosition
         local sz  = btn.AbsoluteSize
         local cx  = pos.X + (sz.X / 2)
         local cy  = pos.Y + (sz.Y / 2)
         VirtualInputMgr:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+        VirtualInputMgr:SendTouchEvent(0, 0, cx, cy)
         task.wait(0.02)
         VirtualInputMgr:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+        VirtualInputMgr:SendTouchEvent(0, 2, cx, cy)
     end)
     return true
 end
@@ -292,7 +320,7 @@ end
 local function glideTo(targetPos, stopDist, maxSeconds)
     if not HRP or not Hum or Hum.Health <= 0 then return false end
     stopDist   = stopDist or 2.5
-    maxSeconds = maxSeconds or 3.5
+    maxSeconds = maxSeconds or 2.5
 
     local startTime = tick()
 
@@ -308,23 +336,40 @@ local function glideTo(targetPos, stopDist, maxSeconds)
             return true
         end
 
-        local stepSpeed = math.min(CFG.glideSpeed, math.max(25, dist * 6))
+        -- Tạm thời xuyên vật cản khi đang lướt để không bị kẹt ở cửa hoặc tường
+        if Char then
+            for _, part in ipairs(Char:GetChildren()) do
+                if part:IsA("BasePart") and part.Name:lower() ~= "humanoidrootpart" then
+                    part.CanCollide = false
+                end
+            end
+        end
+
+        local stepSpeed = math.min(CFG.glideSpeed or 55, math.max(30, dist * 6))
         local dir = diff.Unit
-        local nextPos = curPos + (dir * (stepSpeed * 0.04))
+        local nextPos = curPos + (dir * (stepSpeed * 0.035))
 
         HRP.AssemblyLinearVelocity = Vector3.zero
         local horizontalDiff = Vector3.new(targetPos.X - nextPos.X, 0, targetPos.Z - nextPos.Z)
         if horizontalDiff.Magnitude > 0.1 then
-            HRP.CFrame = CFrame.new(nextPos, Vector3.new(targetPos.X, nextPos.Y, targetPos.Z))
+            HRP.CFrame = CFrame.lookAt(nextPos, Vector3.new(targetPos.X, nextPos.Y, targetPos.Z))
         else
             HRP.CFrame = CFrame.new(nextPos)
         end
 
-        task.wait(0.03)
+        task.wait(0.025)
     end
 
     if HRP then
-        return (HRP.Position - targetPos).Magnitude <= (stopDist + 2.5)
+        local finalDist = (HRP.Position - targetPos).Magnitude
+        if finalDist <= (stopDist + 3.0) then
+            return true
+        else
+            -- Snap trực tiếp nếu bị vật cản vô hình chặn đứng
+            HRP.AssemblyLinearVelocity = Vector3.zero
+            HRP.CFrame = CFrame.new(targetPos)
+            return true
+        end
     end
     return false
 end
@@ -337,8 +382,15 @@ local LOBBY_BLACKLIST = {
     "quest", "trait", "summon", "gacha", "guide", "blacksmith", "display"
 }
 
+local ENEMY_KEYWORDS = {
+    "mob", "enemy", "monster", "boss", "goblin", "wolf", "orc", "skeleton",
+    "zombie", "slime", "bandit", "guard", "spider", "golem", "demon", "knight",
+    "archer", "mage", "minion", "creature", "beast", "undead", "ghoul", "wraith",
+    "bat", "dragon", "queen", "king"
+}
+
 local ENEMY_CONTAINER_NAMES = {
-    "enemies", "mobs", "monsters", "dungeon", "entities", "living", "live", "npcs", "rooms"
+    "enemies", "mobs", "monsters", "dungeon", "entities", "living", "live", "npcs", "rooms", "map", "stage"
 }
 
 local function getAllRoomEnemies()
@@ -347,6 +399,7 @@ local function getAllRoomEnemies()
     if not HRP then return enemies end
 
     local myPos = HRP.Position
+    local inLobby = (game.PlaceId == LOBBY_PLACE_ID)
 
     local function inspectCandidate(model, humObj)
         if not model or not model:IsA("Model") or seen[model] then return end
@@ -355,24 +408,74 @@ local function getAllRoomEnemies()
 
         local nLower = model.Name:lower()
 
-        -- Bỏ qua NPC sảnh
-        for _, b in ipairs(LOBBY_BLACKLIST) do
-            if nLower:find(b) then return end
+        -- Chỉ lọc blacklist NPC khi ĐANG Ở SẢNH CHỜ
+        if inLobby then
+            for _, b in ipairs(LOBBY_BLACKLIST) do
+                if nLower:find(b) then return end
+            end
         end
 
+        -- Xác định root part để tính khoảng cách và tiếp cận
         local root = model.PrimaryPart 
             or model:FindFirstChild("HumanoidRootPart") 
             or model:FindFirstChild("Torso") 
-            or model:FindFirstChild("UpperTorso")
-            or model:FindFirstChild("Head")
-            or model:FindFirstChild("Root")
-            or model:FindFirstChild("Hitbox")
+            or model:FindFirstChild("UpperTorso") 
+            or model:FindFirstChild("Head") 
+            or model:FindFirstChild("Root") 
+            or model:FindFirstChild("Hitbox") 
             or model:FindFirstChildWhichIsA("BasePart")
 
-        if root then
+        if not root then return end
+
+        -- Kiểm tra tình trạng sống của quái
+        local isAlive = false
+        local curHp = 100
+        local maxHp = 100
+
+        if humObj then
+            curHp = humObj.Health
+            maxHp = humObj.MaxHealth > 0 and humObj.MaxHealth or 100
+            if curHp > 0 then
+                isAlive = true
+            elseif humObj.MaxHealth > 0 and humObj:GetState() ~= Enum.HumanoidStateType.Dead then
+                isAlive = true
+            end
+        end
+
+        -- Kiểm tra qua Attribute (Health / HP / CurrentHealth)
+        if not isAlive then
+            local attrHp = model:GetAttribute("Health") or model:GetAttribute("HP") or model:GetAttribute("CurrentHealth")
+            if attrHp and type(attrHp) == "number" and attrHp > 0 then
+                isAlive = true
+                curHp = attrHp
+            end
+        end
+
+        -- Kiểm tra qua ValueObject
+        if not isAlive then
+            local vHp = model:FindFirstChild("Health") or model:FindFirstChild("HP")
+            if vHp and (vHp:IsA("IntValue") or vHp:IsA("NumberValue")) and vHp.Value > 0 then
+                isAlive = true
+                curHp = vHp.Value
+            end
+        end
+
+        -- Nếu đang trong dungeon và model khớp tên quái hoặc có thanh máu Billboard: xem là quái sống!
+        if not isAlive and not inLobby then
+            for _, kw in ipairs(ENEMY_KEYWORDS) do
+                if nLower:find(kw) then
+                    isAlive = true
+                    break
+                end
+            end
+            if not isAlive and (model:FindFirstChildWhichIsA("BillboardGui", true) or model:FindFirstChildOfClass("AnimationController")) then
+                isAlive = true
+            end
+        end
+
+        if isAlive then
             seen[model] = true
             local dist = (myPos - root.Position).Magnitude
-            local maxHp = humObj and humObj.MaxHealth or 100
             local isBoss = nLower:find("boss") or (maxHp > 2500) or nLower:find("queen") or nLower:find("king")
 
             table.insert(enemies, {
@@ -380,20 +483,25 @@ local function getAllRoomEnemies()
                 root  = root,
                 hum   = humObj,
                 boss  = isBoss,
-                dist  = dist
+                dist  = dist,
+                hp    = curHp,
+                maxHp = maxHp
             })
         end
     end
 
-    -- 1. Quét nhanh trong các Folder quái chuyên dụng
+    -- 1. Quét nhanh trong các Folder/Model quái chuyên dụng
     for _, fname in ipairs(ENEMY_CONTAINER_NAMES) do
-        for _, folder in ipairs(workspace:GetChildren()) do
-            if folder.Name:lower() == fname then
-                for _, child in ipairs(folder:GetChildren()) do
-                    if child:IsA("Model") then
-                        local hum = child:FindFirstChildOfClass("Humanoid")
-                        if not hum or hum.Health > 0 or hum.MaxHealth > 0 then
-                            inspectCandidate(child, hum)
+        for _, obj in ipairs(workspace:GetChildren()) do
+            if obj.Name:lower() == fname then
+                for _, sub in ipairs(obj:GetChildren()) do
+                    if sub:IsA("Model") then
+                        inspectCandidate(sub, sub:FindFirstChildOfClass("Humanoid"))
+                    elseif sub:IsA("Folder") then
+                        for _, deep in ipairs(sub:GetChildren()) do
+                            if deep:IsA("Model") then
+                                inspectCandidate(deep, deep:FindFirstChildOfClass("Humanoid"))
+                            end
                         end
                     end
                 end
@@ -401,29 +509,28 @@ local function getAllRoomEnemies()
         end
     end
 
-    -- 2. Quét mọi Humanoid còn sống trong toàn bộ workspace
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Humanoid") then
-            local isAlive = (obj.Health > 0) or (obj.MaxHealth > 0 and obj:GetState() ~= Enum.HumanoidStateType.Dead)
-            if isAlive then
-                local model = obj.Parent
+    -- 2. Quét mọi Humanoid trong workspace (Tuyệt đối giữ nguyên model = hum.Parent, không gộp lên phòng cha)
+    if #enemies == 0 then
+        for _, hum in ipairs(workspace:GetDescendants()) do
+            if hum:IsA("Humanoid") then
+                local model = hum.Parent
                 if model and model:IsA("Model") then
-                    if model.Parent and model.Parent:IsA("Model") and model.Parent ~= workspace then
-                        model = model.Parent
-                    end
-                    inspectCandidate(model, obj)
+                    inspectCandidate(model, hum)
                 end
             end
         end
     end
 
-    -- 3. Dự phòng: Quét quái dùng Value Object HP
-    if #enemies == 0 then
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if (obj:IsA("IntValue") or obj:IsA("NumberValue")) and (obj.Name:lower() == "health" or obj.Name:lower() == "hp") and obj.Value > 0 then
-                local model = obj.Parent
-                if model and model:IsA("Model") then
-                    inspectCandidate(model, nil)
+    -- 3. Quét dự phòng theo từ khóa tên quái trong Dungeon
+    if #enemies == 0 and not inLobby then
+        for _, child in ipairs(workspace:GetChildren()) do
+            if child:IsA("Model") and child ~= Char and not Players:GetPlayerFromCharacter(child) then
+                local cn = child.Name:lower()
+                for _, kw in ipairs(ENEMY_KEYWORDS) do
+                    if cn:find(kw) then
+                        inspectCandidate(child, child:FindFirstChildOfClass("Humanoid"))
+                        break
+                    end
                 end
             end
         end
@@ -472,8 +579,24 @@ local function equipWeapon()
     if not tool then
         local bp = LP:FindFirstChild("Backpack")
         if bp then
-            local t = bp:FindFirstChildOfClass("Tool")
-            if t and Hum then pcall(function() Hum:EquipTool(t) end) end
+            local bestTool = nil
+            local weaponKw = {"sword", "blade", "dagger", "bow", "staff", "axe", "hammer", "spear", "mace", "katana", "scythe", "weapon"}
+            for _, t in ipairs(bp:GetChildren()) do
+                if t:IsA("Tool") then
+                    local tName = t.Name:lower()
+                    for _, kw in ipairs(weaponKw) do
+                        if tName:find(kw) then
+                            bestTool = t
+                            break
+                        end
+                    end
+                    if bestTool then break end
+                    if not bestTool then bestTool = t end
+                end
+            end
+            if bestTool and Hum then
+                pcall(function() Hum:EquipTool(bestTool) end)
+            end
         end
     end
 end
@@ -482,6 +605,41 @@ local lastM1    = 0
 local lastSkill = 0
 local lastDash  = 0
 
+local function getButtonFullText(btn)
+    if not btn then return "" end
+    local texts = { btn.Name }
+    if btn:IsA("TextButton") and btn.Text then
+        table.insert(texts, btn.Text)
+    end
+    for _, child in ipairs(btn:GetDescendants()) do
+        if (child:IsA("TextLabel") or child:IsA("TextButton")) and child.Text and child.Text ~= "" then
+            table.insert(texts, child.Text)
+        end
+    end
+    return table.concat(texts, " "):lower()
+end
+
+local function triggerMobileAttackButtons()
+    local pGui = LP:FindFirstChild("PlayerGui")
+    if not pGui then return end
+    local attackKeywords = {"attack", "m1", "slash", "swing", "hit", "combat", "strike", "basic"}
+    for _, gui in ipairs(pGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
+            for _, btn in ipairs(gui:GetDescendants()) do
+                if (btn:IsA("ImageButton") or btn:IsA("TextButton")) and btn.Visible and not isOurGui(btn) then
+                    local bName = getButtonFullText(btn)
+                    for _, kw in ipairs(attackKeywords) do
+                        if bName:find(kw) then
+                            safeClickGuiButton(btn)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 local function triggerMobileSkillButtons()
     local pGui = LP:FindFirstChild("PlayerGui")
     if not pGui then return end
@@ -489,8 +647,8 @@ local function triggerMobileSkillButtons()
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("ImageButton") or btn:IsA("TextButton")) and btn.Visible and not isOurGui(btn) then
-                    local bName = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
-                    if bName:find("skill") or bName:find("ability") or bName:find("spell") or bName == "1" or bName == "2" or bName == "3" or bName == "4" then
+                    local bName = getButtonFullText(btn)
+                    if bName:find("skill") or bName:find("ability") or bName:find("spell") or bName:find("chiêu") or bName == "1" or bName == "2" or bName == "3" or bName == "4" then
                         safeClickGuiButton(btn)
                     end
                 end
@@ -506,26 +664,26 @@ local function attackTarget(targetModel, targetRoot)
 
     equipWeapon()
 
-    -- 1. Kích hoạt Tool vũ khí nếu có
+    -- 1. Kích hoạt Tool vũ khí trực tiếp
     local tool = Char and Char:FindFirstChildOfClass("Tool")
     if tool then pcall(function() tool:Activate() end) end
 
-    -- 2. Kích hoạt M1 thông qua VirtualUser & MouseEvent ở tọa độ an toàn (120, 120)
+    -- 2. Kích hoạt VirtualInput & Mobile Touch Event ở vùng trung tâm & vùng đánh mobile
     pcall(function()
+        local vp = Cam and Cam.ViewportSize or Vector2.new(800, 600)
+        local tapX, tapY = vp.X * 0.75, vp.Y * 0.65
         VirtualUser:CaptureController()
-        VirtualUser:ClickButton1(Vector2.new(120, 120))
-        VirtualUser:Button1Down(Vector2.new(120, 120))
-        task.wait(0.01)
-        VirtualUser:Button1Up(Vector2.new(120, 120))
+        VirtualUser:ClickButton1(Vector2.new(tapX, tapY))
+        VirtualInputMgr:SendMouseButtonEvent(tapX, tapY, 0, true, game, 1)
+        VirtualInputMgr:SendMouseButtonEvent(tapX, tapY, 0, false, game, 1)
+        VirtualInputMgr:SendTouchEvent(0, 0, tapX, tapY)
+        VirtualInputMgr:SendTouchEvent(0, 2, tapX, tapY)
     end)
 
-    pcall(function()
-        VirtualInputMgr:SendMouseButtonEvent(120, 120, 0, true, game, 1)
-        task.wait(0.01)
-        VirtualInputMgr:SendMouseButtonEvent(120, 120, 0, false, game, 1)
-    end)
+    -- 3. Bấm nút đánh Mobile trên màn hình game (nếu có)
+    triggerMobileAttackButtons()
 
-    -- 3. Bắn Remote Combat tới Server
+    -- 4. Bắn Remote Combat tới Server
     if (now - lastScanTime) > 8 then scanRemotes() end
     for _, r in ipairs(combatRemotes) do
         pcall(function()
@@ -540,36 +698,31 @@ local function attackTarget(targetModel, targetRoot)
         end)
     end
 
-    -- 4. Xả Kỹ Năng 1, 2, 3, 4 (Phím bàn phím + Nút cảm ứng Mobile)
+    -- 5. Xả Kỹ Năng 1, 2, 3, 4 không gây đứng hình (chạy bất đồng bộ trong task.spawn)
     if State.autoskill and (now - lastSkill > CFG.skillDelay) then
         lastSkill = now
-        pcall(function()
-            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.One, false, game)
-            task.wait(0.02)
-            VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.One, false, game)
-            task.wait(0.03)
-            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
-            task.wait(0.02)
-            VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
-            task.wait(0.03)
-            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Three, false, game)
-            task.wait(0.02)
-            VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.Three, false, game)
-            task.wait(0.03)
-            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Four, false, game)
-            task.wait(0.02)
-            VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.Four, false, game)
+        task.spawn(function()
+            local keys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four}
+            for _, k in ipairs(keys) do
+                pcall(function()
+                    VirtualInputMgr:SendKeyEvent(true, k, false, game)
+                    task.wait(0.02)
+                    VirtualInputMgr:SendKeyEvent(false, k, false, game)
+                end)
+            end
+            triggerMobileSkillButtons()
         end)
-        triggerMobileSkillButtons()
     end
 
-    -- 5. Lướt Dash (Q) né đòn
+    -- 6. Lướt Dash (Q) né đòn
     if State.autodash and (now - lastDash > CFG.dashDelay) then
         lastDash = now
-        pcall(function()
-            VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-            task.wait(0.02)
-            VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+        task.spawn(function()
+            pcall(function()
+                VirtualInputMgr:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
+                task.wait(0.02)
+                VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+            end)
         end)
     end
 end
@@ -617,7 +770,7 @@ local function clickNextRoomVote()
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
-                    local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
+                    local bText = getButtonFullText(btn)
                     if bText:find("vote") or bText:find("yes") or bText:find("ready") or bText:find("proceed") or bText:find("tiếp") or bText:find("đồng ý") or bText:find("next") or bText:find("ok") then
                         safeClickGuiButton(btn)
                     end
@@ -726,7 +879,7 @@ local function clickReplayButton()
             if gName:find("victory") or gName:find("result") or gName:find("clear") or gName:find("gameover") or gName:find("win") or gName:find("end") then
                 for _, btn in ipairs(gui:GetDescendants()) do
                     if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
-                        local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
+                        local bText = getButtonFullText(btn)
                         if bText:find("replay") or bText:find("retry") or bText:find("again") or bText:find("chơi lại") or bText:find("continue") then
                             safeClickGuiButton(btn)
                             State.statusText = "🏆 Thắng trận! Đang bấm chơi lại (Replay)..."
@@ -875,26 +1028,26 @@ local function handleLobbyMenu()
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
-                    local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
+                    local bText = getButtonFullText(btn)
                     local matchedWorld = false
                     if targetW == "1" then
-                        if bText:find("world 1") or bText:find("world1") or bText:find("thế giới 1") or bText:find("chapter 1") or bText:find("chương 1") or bText:find("grassland") then
+                        if bText:find("world 1") or bText:find("world1") or bText:find("thế giới 1") or bText:find("chapter 1") or bText:find("chương 1") or bText:find("grassland") or bText:find("w1") then
                             matchedWorld = true
                         end
                     elseif targetW == "2" then
-                        if bText:find("world 2") or bText:find("world2") or bText:find("thế giới 2") or bText:find("chapter 2") or bText:find("desert") then
+                        if bText:find("world 2") or bText:find("world2") or bText:find("thế giới 2") or bText:find("chapter 2") or bText:find("chương 2") or bText:find("desert") or bText:find("w2") then
                             matchedWorld = true
                         end
                     elseif targetW == "3" then
-                        if bText:find("world 3") or bText:find("world3") or bText:find("thế giới 3") or bText:find("chapter 3") or bText:find("snow") or bText:find("ice") then
+                        if bText:find("world 3") or bText:find("world3") or bText:find("thế giới 3") or bText:find("chapter 3") or bText:find("chương 3") or bText:find("snow") or bText:find("ice") or bText:find("w3") then
                             matchedWorld = true
                         end
                     elseif targetW == "4" then
-                        if bText:find("world 4") or bText:find("world4") or bText:find("thế giới 4") or bText:find("chapter 4") or bText:find("volcano") or bText:find("lava") then
+                        if bText:find("world 4") or bText:find("world4") or bText:find("thế giới 4") or bText:find("chapter 4") or bText:find("chương 4") or bText:find("volcano") or bText:find("lava") or bText:find("w4") then
                             matchedWorld = true
                         end
                     elseif targetW == "5" then
-                        if bText:find("world 5") or bText:find("world5") or bText:find("thế giới 5") or bText:find("chapter 5") then
+                        if bText:find("world 5") or bText:find("world5") or bText:find("thế giới 5") or bText:find("chapter 5") or bText:find("chương 5") or bText:find("w5") then
                             matchedWorld = true
                         end
                     end
@@ -917,14 +1070,14 @@ local function handleLobbyMenu()
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
-                    local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
+                    local bText = getButtonFullText(btn)
                     local matchedLevel = false
                     if targetLvlStr == "auto" or targetLvlStr == "1" then
-                        if bText:find("level 1") or bText:find("lv 1") or bText:find("cấp 1") or bText:find("stage 1") or bText:find("ải 1") or btn.Name == "1" or (btn:IsA("TextButton") and btn.Text == "1") then
+                        if bText:find("level 1") or bText:find("lv 1") or bText:find("cấp 1") or bText:find("stage 1") or bText:find("ải 1") or bText == "1" or bText:find("easy") or bText:find("dễ") or bText:find("normal") or bText:find("thường") then
                             matchedLevel = true
                         end
                     else
-                        if bText:find("level " .. targetLvlStr) or bText:find("lv " .. targetLvlStr) or bText:find("cấp " .. targetLvlStr) or bText:find("stage " .. targetLvlStr) or btn.Name == targetLvlStr or (btn:IsA("TextButton") and btn.Text == targetLvlStr) then
+                        if bText:find("level " .. targetLvlStr) or bText:find("lv " .. targetLvlStr) or bText:find("cấp " .. targetLvlStr) or bText:find("stage " .. targetLvlStr) or bText == targetLvlStr then
                             matchedLevel = true
                         end
                     end
@@ -948,9 +1101,9 @@ local function handleLobbyMenu()
         if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
             for _, btn in ipairs(gui:GetDescendants()) do
                 if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and not isOurGui(btn) then
-                    local bText = (btn.Name .. " " .. (btn:IsA("TextButton") and btn.Text or "")):lower()
-                    if not bText:find("close") and not bText:find("cancel") and not bText:find("hủy") and not bText:find("đóng") and not bText:find("back") and not bText:find("shop") and not bText:find("gacha") then
-                        if bText:find("solo") or bText:find("start") or bText:find("create") or bText:find("play") or bText:find("bắt đầu") or bText:find("chơi") or bText:find("tạo phòng") or bText:find("enter") or bText:find("ready") or bText:find("confirm") or bText:find("xác nhận") then
+                    local bText = getButtonFullText(btn)
+                    if not bText:find("close") and not bText:find("cancel") and not bText:find("hủy") and not bText:find("đóng") and not bText:find("back") and not bText:find("shop") and not bText:find("gacha") and not bText:find("setting") then
+                        if bText:find("solo") or bText:find("start") or bText:find("create") or bText:find("play") or bText:find("bắt đầu") or bText:find("chơi") or bText:find("tạo phòng") or bText:find("enter") or bText:find("ready") or bText:find("confirm") or bText:find("xác nhận") or bText:find("tiến vào") or bText:find("battle") or bText:find("launch") then
                             safeClickGuiButton(btn)
                             started = true
                             clickedSomething = true
@@ -980,22 +1133,30 @@ local function runLobbyEnter()
     if part and HRP then
         State.statusText = "Đang lướt tới cổng " .. targetInfo.name .. "..."
         local padPos = part.Position + Vector3.new(0, 3.2, 0)
-        glideTo(padPos, 2.5, 5.0)
+        glideTo(padPos, 2.5, 4.0)
 
         if HRP then
             HRP.CFrame = CFrame.new(padPos)
         end
 
-        if prompt then
-            pcall(function() fireproximityprompt(prompt) end)
+        local touchTargets = { part }
+        if part.Parent and part.Parent:IsA("Model") then
+            for _, ch in ipairs(part.Parent:GetDescendants()) do
+                if ch:IsA("BasePart") then table.insert(touchTargets, ch) end
+            end
         end
 
-        if firetouchinterest and part then
-            pcall(function()
-                firetouchinterest(HRP, part, 0)
-                task.wait(0.05)
-                firetouchinterest(HRP, part, 1)
-            end)
+        for _, tp in ipairs(touchTargets) do
+            if prompt then pcall(function() fireproximityprompt(prompt) end) end
+            local pp = tp:FindFirstChildOfClass("ProximityPrompt")
+            if pp then pcall(function() fireproximityprompt(pp) end) end
+            if firetouchinterest then
+                pcall(function()
+                    firetouchinterest(HRP, tp, 0)
+                    task.wait(0.03)
+                    firetouchinterest(HRP, tp, 1)
+                end)
+            end
         end
 
         -- Nhấn phím E tương tác cổng hầm ngục
@@ -1005,19 +1166,19 @@ local function runLobbyEnter()
             VirtualInputMgr:SendKeyEvent(false, Enum.KeyCode.E, false, game)
         end)
 
-        task.wait(0.5)
+        task.wait(0.4)
 
         -- Đợi và xử lý giao diện bảng chọn ải
-        for _ = 1, 6 do
+        for _ = 1, 8 do
             if handleLobbyMenu() then break end
-            task.wait(0.4)
+            task.wait(0.35)
         end
     else
         State.statusText = "📍 Đang kiểm tra giao diện bảng chọn map..."
         handleLobbyMenu()
     end
 
-    task.wait(2.5)
+    task.wait(2.0)
     isLobbyBusy = false
 end
 
@@ -1025,21 +1186,22 @@ end
 -- KIỂM TRA ĐANG Ở TRONG ẢI HAY Ở SẢNH CHỜ
 -- ================================================
 local function checkIsInDungeon()
+    -- Nếu PlaceId khác PlaceId Sảnh -> Chắc chắn 100% đang trong Ải
+    if game.PlaceId ~= LOBBY_PLACE_ID then
+        return true
+    end
+
+    -- Nếu quét thấy quái
     if #getAllRoomEnemies() > 0 then return true end
 
-    -- Kiểm tra cửa phòng kế
+    -- Kiểm tra các vật thể cửa đặc trưng của hầm ngục
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
             local n = obj.Name:lower()
-            if n:find("nextroom") or n:find("next_room") or n:find("dungeondoor") or n:find("roomdoor") then
+            if n:find("nextroom") or n:find("next_room") or n:find("dungeondoor") or n:find("roomdoor") or n:find("dungeon_door") then
                 return true
             end
         end
-    end
-
-    -- Nếu PlaceId khác PlaceId Sảnh -> Chắc chắn đang trong Ải
-    if game.PlaceId ~= LOBBY_PLACE_ID then
-        return true
     end
 
     return false
@@ -1048,10 +1210,20 @@ end
 -- ================================================
 -- LUỒNG ĐIỀU PHỐI THÔNG MINH TOÀN DIỆN (UNIFIED MASTER AUTO FARM)
 -- ================================================
+local lastSeenEnemiesTime = tick()
+local consecutiveEmptyScans = 0
+
 task.spawn(function()
     while true do
-        task.wait(0.08)
+        task.wait(0.05)
         if not HRP or not Hum or Hum.Health <= 0 then continue end
+
+        local inDungeon = checkIsInDungeon()
+
+        -- Trong ải: Luôn đảm bảo kích hoạt cày quái
+        if inDungeon or (game.PlaceId ~= LOBBY_PLACE_ID) then
+            State.autofarm = true
+        end
 
         -- BƯỚC 1: QUÉT QUÁI TRONG PHÒNG HIỆN TẠI
         local enemies = {}
@@ -1060,7 +1232,10 @@ task.spawn(function()
         end
 
         if #enemies > 0 then
-            -- TRƯỜNG HỢP 1: CÓ QUÁI -> TỰ ĐỘNG LƯỚT VÀ FARM QUÁI NGAY LẬP TỨC!
+            lastSeenEnemiesTime = tick()
+            consecutiveEmptyScans = 0
+
+            -- TRƯỜNG HỢP 1: CÓ QUÁI -> ÁP SÁT VÀ DIỆT QUÁI LIÊN TỤC KHÔNG ĐỨNG KHỰNG
             local target = enemies[1]
 
             if target and target.root then
@@ -1068,51 +1243,79 @@ task.spawn(function()
                 local mobPos  = mobRoot.Position
                 local myPos   = HRP.Position
 
-                local hpText = (target.hum and target.hum.Health) and ("HP: " .. math.floor(target.hum.Health)) or "Sống"
-                State.statusText = "⚔️ Đang diệt: " .. target.model.Name .. " (" .. hpText .. " • Còn " .. #enemies .. " quái)"
+                local hpVal = (target.hp and target.hp > 0) and math.floor(target.hp) or (target.hum and math.floor(target.hum.Health) or 100)
+                State.statusText = "⚔️ Đang diệt: " .. target.model.Name .. " (HP: " .. hpVal .. " • Còn " .. #enemies .. " quái)"
 
+                local targetPos
                 if State.godhover then
-                    -- BAY TRÊN ĐẦU QUÁI (GOD HOVER) - BẤT TỬ 100%
-                    local hoverY = CFG.hoverHeight or 6.0
+                    -- Bay 3.5 studs trên đầu quái: Vừa miễn nhiễm sát thương vừa chém trúng quái 100%
+                    local hoverY = CFG.hoverHeight or 3.5
                     if Hum.Health < (Hum.MaxHealth * 0.45) then
-                        hoverY = hoverY + 8.0 -- Tự nâng độ cao né sát thương khi máu thấp
+                        hoverY = hoverY + 3.0
                     end
-                    local targetPos = mobPos + Vector3.new(0, hoverY, 0)
-                    local dist = (myPos - targetPos).Magnitude
-
-                    if dist > 3.0 then
-                        glideTo(targetPos, 2.0, 1.8)
-                    else
-                        HRP.AssemblyLinearVelocity = Vector3.zero
-                        HRP.CFrame = CFrame.lookAt(targetPos, mobPos)
-                    end
+                    targetPos = mobPos + Vector3.new(0, hoverY, 0)
                 else
                     -- Áp sát sau lưng quái ở mặt đất
                     local mobCF = mobRoot.CFrame
                     local behindPos = mobPos - (mobCF.LookVector * 2.5)
-                    behindPos = Vector3.new(behindPos.X, mobPos.Y, behindPos.Z)
-                    local dist = (myPos - behindPos).Magnitude
-                    if dist > 3.5 then
-                        glideTo(behindPos, 2.5, 1.8)
-                    else
-                        HRP.AssemblyLinearVelocity = Vector3.zero
-                        HRP.CFrame = CFrame.lookAt(behindPos, Vector3.new(mobPos.X, behindPos.Y, mobPos.Z))
-                    end
+                    targetPos = Vector3.new(behindPos.X, mobPos.Y + 0.5, behindPos.Z)
                 end
 
+                local mobLook = mobRoot.CFrame.LookVector
+                local flatMobLook = Vector3.new(mobLook.X, 0, mobLook.Z)
+                if flatMobLook.Magnitude < 0.1 then flatMobLook = Vector3.new(0, 0, -1) else flatMobLook = flatMobLook.Unit end
+
+                local dist = (myPos - targetPos).Magnitude
+
+                if dist > 35 then
+                    -- Quái ở xa: Lướt nhanh tiếp cận
+                    glideTo(targetPos, 3.0, 1.2)
+                elseif dist > 3.0 then
+                    -- Tiếp cận mượt mà
+                    local dir = (targetPos - myPos).Unit
+                    HRP.AssemblyLinearVelocity = Vector3.zero
+                    local nextPos = myPos + (dir * math.min(dist, 4.0))
+                    HRP.CFrame = CFrame.lookAt(nextPos, nextPos + flatMobLook)
+                else
+                    -- Đã ở cự ly chiến đấu: Giữ chặt vị trí trên đầu quái nhìn theo hướng quái
+                    HRP.AssemblyLinearVelocity = Vector3.zero
+                    HRP.CFrame = CFrame.lookAt(targetPos, targetPos + flatMobLook)
+                end
+
+                -- Tấn công quái đồng thời trên cùng nhịp lặp
                 attackTarget(target.model, mobRoot)
             end
 
         else
-            -- TRƯỜNG HỢP 2: PHÒNG HIỆN TẠI SẠCH QUÁI
-            local inDungeon = checkIsInDungeon()
-
+            -- TRƯỜNG HỢP 2: PHÒNG HIỆN TẠI KHÔNG CÒN QUÁI
             if inDungeon or (game.PlaceId ~= LOBBY_PLACE_ID) then
-                -- Đang trong Ải: Replay -> Rương -> Cửa phòng tiếp theo
-                State.statusText = "✅ Phòng sạch quái! Đang kiểm tra rương và cửa kế..."
-                if State.autoreplay then clickReplayButton() end
-                if State.autochest  then lootChest() end
-                if State.autodoor   then advanceNextRoom() end
+                consecutiveEmptyScans = consecutiveEmptyScans + 1
+
+                -- 1. Ưu tiên kiểm tra Thắng trận (Replay)
+                local replaying = false
+                if State.autoreplay then
+                    replaying = clickReplayButton()
+                end
+
+                if not replaying then
+                    -- 2. Nhặt rương báu phòng nếu có
+                    local looting = false
+                    if State.autochest then
+                        looting = lootChest()
+                    end
+
+                    -- 3. Chỉ qua cửa khi đã sạch quái tối thiểu 1.5s (tránh lao vào cửa khi quái đợt tiếp sắp spawn)
+                    if not looting and (tick() - lastSeenEnemiesTime) >= 1.5 then
+                        State.statusText = "✅ Phòng sạch quái! Đang tiến qua cửa phòng tiếp..."
+                        if State.autodoor then
+                            advanceNextRoom()
+                        end
+                    else
+                        if not looting then
+                            State.statusText = "⏳ Đang kiểm tra phòng / Đợi quái đợt tiếp..."
+                        end
+                    end
+                end
             else
                 -- Đang ở Sảnh Chờ (Lobby): Tự động đi cổng vào ải nếu bật autoafk
                 if State.autoafk then
@@ -1413,6 +1616,46 @@ FloatBtn.Draggable        = true
 Instance.new("UICorner", FloatBtn).CornerRadius = UDim.new(0, 26)
 local fbStroke = Instance.new("UIStroke", FloatBtn)
 fbStroke.Color = Color3.fromRGB(145, 75, 255); fbStroke.Thickness = 2
+
+-- 1.5 HUY HIỆU TRẠNG THÁI NỔI TRÊN MÀN HÌNH (MINI HUD BADGE - LUÔN HIỆN NGAY CẢ KHI ĐÓNG MENU)
+local MiniHud = Instance.new("Frame", SG)
+MiniHud.Name             = "MiniHud"
+MiniHud.Size             = UDim2.new(0, 270, 0, 32)
+MiniHud.Position         = UDim2.new(0.5, -135, 0, 10)
+MiniHud.BackgroundColor3 = Color3.fromRGB(16, 13, 28)
+MiniHud.BackgroundTransparency = 0.15
+MiniHud.Active           = true
+MiniHud.Draggable        = true
+Instance.new("UICorner", MiniHud).CornerRadius = UDim.new(0, 16)
+local mhStroke = Instance.new("UIStroke", MiniHud)
+mhStroke.Color = Color3.fromRGB(145, 75, 255); mhStroke.Thickness = 1.8
+
+local HudIcon = Instance.new("TextLabel", MiniHud)
+HudIcon.Size               = UDim2.new(0, 26, 1, 0)
+HudIcon.Position           = UDim2.new(0, 6, 0, 0)
+HudIcon.BackgroundTransparency = 1
+HudIcon.Text               = "⚡"
+HudIcon.TextSize           = 14
+HudIcon.Font               = Enum.Font.GothamBold
+
+local HudText = Instance.new("TextLabel", MiniHud)
+HudText.Size               = UDim2.new(1, -38, 1, 0)
+HudText.Position           = UDim2.new(0, 32, 0, 0)
+HudText.BackgroundTransparency = 1
+HudText.Text               = State.statusText
+HudText.TextColor3         = Color3.fromRGB(225, 255, 190)
+HudText.Font               = Enum.Font.GothamBold
+HudText.TextSize           = 11
+HudText.TextXAlignment     = Enum.TextXAlignment.Left
+HudText.TextTruncate       = Enum.TextTruncate.AtEnd
+
+task.spawn(function()
+    while task.wait(0.25) do
+        if HudText and HudText.Parent then
+            HudText.Text = State.statusText
+        end
+    end
+end)
 
 -- 2. KHUNG MENU CHÍNH
 local MainFrame = Instance.new("Frame", SG)
@@ -1847,7 +2090,7 @@ end, 8)
 -- CÀY CẤP & CHIẾN ĐẤU CHI TIẾT
 createCategory("⚔️ TÙY CHỌN CHIẾN ĐẤU & QUA ẢI", 9)
 
-createToggle("Bay Trên Đầu Quái (God Hover)", "Bay 6 studs trên đầu quái chém xuống - Bất tử 100% không mất máu", State.godhover, function(val)
+createToggle("Bay Trên Đầu Quái (God Hover)", "Bay 3.5 studs trên đầu quái chém xuống - Bất tử 100% trúng đòn mọi quái", State.godhover, function(val)
     State.godhover = val
 end, 10)
 
